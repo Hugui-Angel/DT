@@ -1,0 +1,1264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AliTrack</title>
+<style>
+  :root{
+    --bg:#16181c;
+    --panel:#1e2127;
+    --line:#3a3f48;
+    --text:#e7e9ec;
+    --text-dim:#8a909b;
+    --con:#2f8fef;      /* azul: CON alineadores */
+    --con-soft:#1c3a5c;
+    --sin:#ef8b2f;      /* naranja: SIN alineadores */
+    --sin-soft:#5c3a1c;
+    --ok:#2fb86a;
+    --danger:#e5484d;
+    --radius:14px;
+    font-size:16px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'JetBrains Mono','Courier New',monospace;
+    -webkit-tap-highlight-color:transparent;
+    overflow-x:hidden;
+  }
+  #app{max-width:480px;margin:0 auto;min-height:100vh;position:relative;padding:18px 16px 40px;}
+
+  /* ---------- top bar ---------- */
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
+  .menu-btn{
+    background:none;border:1px solid var(--line);color:var(--text);
+    width:42px;height:42px;border-radius:10px;font-size:20px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .menu-btn:active{background:var(--panel);}
+
+  /* ---------- header info row ---------- */
+  .header-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;gap:10px;}
+  .ferula-block .label{color:var(--text-dim);font-size:.78rem;letter-spacing:.04em;}
+  .ferula-id{
+    font-size:1.6rem;font-weight:700;letter-spacing:.03em;cursor:pointer;
+    border-bottom:1px dashed var(--line);display:inline-block;padding-bottom:2px;
+  }
+  .ferula-sub{color:var(--text-dim);font-size:.85rem;margin-top:4px;}
+  .ferula-sub b{color:var(--text);}
+
+  .revision-block{text-align:right;}
+  .revision-block .label{color:var(--text-dim);font-size:.78rem;}
+  .revision-date{
+    font-size:.95rem;cursor:pointer;border-bottom:1px dashed var(--line);
+    display:inline-block;padding-bottom:2px;margin-top:2px;
+  }
+  .revision-count{font-size:.85rem;color:var(--text-dim);margin-top:4px;}
+  .revision-count b{color:var(--text);}
+
+  /* ---------- main status card ---------- */
+  .status-card{
+    border-radius:var(--radius);
+    border:1.5px solid var(--con);
+    background:var(--con-soft);
+    padding:18px 16px 16px;
+    cursor:pointer;
+    transition:border-color .25s, background-color .25s;
+    user-select:none;
+  }
+  .status-card.sin{border-color:var(--sin);background:var(--sin-soft);}
+  .status-title{
+    text-align:center;font-weight:700;letter-spacing:.08em;font-size:.95rem;
+    background:rgba(255,255,255,.05);border-radius:8px;padding:8px 0;margin-bottom:16px;
+  }
+  .time-cols{display:flex;justify-content:space-between;margin-bottom:4px;}
+  .time-col{display:flex;flex-direction:column;}
+  .time-col.right{align-items:flex-end;}
+  .time-col .lbl{color:var(--text-dim);font-size:.85rem;}
+  .time-col .val{font-variant-numeric:tabular-nums;font-weight:700;font-size:1.15rem;margin-top:2px;}
+
+  .bar-wrap{margin:14px 0 6px;}
+  .bar-track{height:16px;border-radius:8px;background:#d9dde3;overflow:hidden;display:flex;position:relative;}
+  .bar-con{height:100%;background:var(--con);}
+  .bar-sin{height:100%;background:var(--sin);}
+  .bar-gap{height:100%;background:repeating-linear-gradient(45deg,#0000,#0000 4px,#00000010 4px,#00000010 8px);}
+  .bar-marker{position:absolute;top:-3px;bottom:-3px;width:4px;background:#0a2f63;border-radius:2px;}
+  .objetivo-line{text-align:right;font-size:.8rem;color:var(--text-dim);margin-top:6px;}
+
+  .ready-banner{
+    margin-top:14px;background:var(--ok);color:#08210f;font-weight:700;
+    border-radius:8px;padding:10px;text-align:center;font-size:.85rem;
+    animation:pulse 1.6s infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.65;}}
+
+  .tap-hint{text-align:center;color:var(--text-dim);font-size:.78rem;margin-top:14px;}
+
+  /* ---------- timer panel (sin countdown) ---------- */
+  .timer-panel{
+    margin-top:14px;background:#ffffff10;border-radius:10px;padding:12px;text-align:center;
+  }
+  .timer-panel .ttl{font-size:.75rem;color:var(--text-dim);letter-spacing:.06em;text-transform:uppercase;}
+  .timer-panel .clock{font-size:1.6rem;font-weight:700;margin:6px 0;font-variant-numeric:tabular-nums;}
+  .timer-panel .clock.warn{color:var(--danger);}
+
+  /* ---------- action buttons ---------- */
+  .actions{display:flex;gap:10px;margin-top:18px;}
+  .btn{
+    flex:1;border:none;border-radius:10px;padding:12px 8px;font-family:inherit;
+    font-size:.85rem;font-weight:600;cursor:pointer;display:flex;align-items:center;
+    justify-content:center;gap:6px;
+  }
+  .btn-secondary{background:var(--panel);color:var(--text);border:1px solid var(--line);}
+  .btn-undo{background:var(--panel);color:var(--text);border:1px solid var(--line);}
+  .btn-ok{background:var(--ok);color:#06220f;}
+  .btn-danger{background:var(--danger);color:#2a0606;}
+
+  /* ---------- modal ---------- */
+  .overlay{
+    position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;
+    z-index:50;padding:20px;
+  }
+  .overlay.show{display:flex;}
+  .modal{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    width:100%;max-width:380px;padding:20px;max-height:88vh;overflow-y:auto;
+  }
+  .modal h3{margin:0 0 14px;font-size:1.05rem;}
+  .preset-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
+  .preset-btn{
+    background:#ffffff10;border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:10px 4px;font-family:inherit;font-size:.85rem;cursor:pointer;
+  }
+  .preset-btn.active{background:var(--con);border-color:var(--con);color:#fff;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:.78rem;color:var(--text-dim);margin-bottom:5px;}
+  .field input[type=text],.field input[type=number],.field input[type=date],.field input[type=time]{
+    width:100%;background:#0003;border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:9px 10px;font-family:inherit;font-size:.95rem;
+  }
+  .modal-actions{display:flex;gap:10px;margin-top:6px;}
+  .modal-actions .btn{padding:11px 8px;}
+
+  /* ---------- side menu ---------- */
+  .side-overlay{
+    position:fixed;inset:0;background:#000a;display:none;z-index:60;
+  }
+  .side-overlay.show{display:block;}
+  .side-panel{
+    position:absolute;top:0;left:0;bottom:0;width:86%;max-width:340px;
+    background:var(--panel);padding:20px 18px 30px;overflow-y:auto;
+    transform:translateX(-100%);transition:transform .25s ease;
+  }
+  .side-overlay.show .side-panel{transform:translateX(0);}
+  .side-close{background:none;border:none;color:var(--text-dim);font-size:1.4rem;cursor:pointer;float:right;}
+  .side-title{font-size:1.05rem;font-weight:700;margin-bottom:18px;}
+  .section-toggle{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 0;border-bottom:1px solid var(--line);margin-bottom:14px;
+  }
+  .section-toggle span{font-weight:700;letter-spacing:.04em;font-size:.92rem;}
+  .sub-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;font-size:.88rem;}
+  .sub-row .stxt{color:var(--text);}
+  .sub-row input[type=text],.sub-row input[type=number],.sub-row input[type=time]{
+    width:80px;background:#0003;border:1px solid var(--line);color:var(--text);
+    border-radius:6px;padding:6px 8px;font-family:inherit;font-size:.85rem;text-align:right;
+  }
+  .sub-row.indent{padding-left:6px;}
+  .switch{
+    width:42px;height:24px;border-radius:14px;background:#3a3f48;position:relative;cursor:pointer;
+    flex-shrink:0;transition:background .2s;
+  }
+  .switch.on{background:var(--con);}
+  .switch .knob{
+    position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;
+    transition:left .2s;
+  }
+  .switch.on .knob{left:20px;}
+  .select-dark{
+    background:#0c0e11;color:var(--text);border:1px solid var(--line);
+    border-radius:6px;padding:6px 8px;font-family:inherit;font-size:.85rem;
+    color-scheme:dark;
+  }
+  .menu-divider{height:1px;background:var(--line);margin:18px 0;}
+
+  .timeline-row{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:10px 10px;border-radius:8px;margin-bottom:6px;cursor:pointer;
+    border-left:4px solid var(--con);background:#ffffff08;
+  }
+  .timeline-row.sin{border-left-color:var(--sin);}
+  .timeline-row .tl-status{font-size:.72rem;font-weight:700;letter-spacing:.04em;color:var(--con);}
+  .timeline-row.sin .tl-status{color:var(--sin);}
+  .timeline-row .tl-range{font-size:.85rem;color:var(--text);}
+  .timeline-row .tl-dur{font-size:.85rem;font-weight:700;color:var(--text);white-space:nowrap;}
+  .timeline-row.live{opacity:.92;}
+  .help-text{font-size:.74rem;color:var(--text-dim);margin-top:-6px;margin-bottom:10px;line-height:1.4;}
+
+  /* fade for disabled groups */
+  .group-disabled{opacity:.4;pointer-events:none;}
+
+  .alert-toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+    background:var(--ok);color:#06220f;padding:10px 18px;border-radius:10px;
+    font-size:.85rem;font-weight:600;opacity:0;pointer-events:none;transition:opacity .3s;z-index:80;
+  }
+  .alert-toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="topbar">
+    <button class="menu-btn" id="menuBtn">&#9776;</button>
+    <div style="text-align:right;">
+      <div style="font-size:.6rem;color:var(--text-dim);letter-spacing:.03em;">Dentali-allineatori Tracker</div>
+      <div style="font-size:.78rem;color:var(--text-dim);letter-spacing:.04em;">AliTrack</div>
+    </div>
+  </div>
+
+  <div class="header-row">
+    <div class="ferula-block">
+      <div class="label">FÉRULA ACTUAL</div>
+      <div class="ferula-id" id="ferulaIdDisplay">33-A</div>
+      <div class="ferula-sub" id="ferulaSub">Faltan: <b id="cambioCountdown">—</b></div>
+    </div>
+    <div class="revision-block">
+      <div class="label">PRÓXIMA REVISIÓN</div>
+      <div class="revision-date" id="revisionDateDisplay">—</div>
+      <div class="revision-count">en <b id="revisionCountdown">—</b></div>
+    </div>
+  </div>
+
+  <div class="status-card" id="statusCard">
+    <div class="status-title" id="statusTitle">CON ALINEADORES</div>
+
+    <div class="time-cols">
+      <div class="time-col left">
+        <span class="lbl">CON</span>
+        <span class="val" id="conTimeVal">00:00:00</span>
+      </div>
+      <div class="time-col right">
+        <span class="lbl">SIN</span>
+        <span class="val" id="sinTimeVal">00:00:00</span>
+      </div>
+    </div>
+
+    <div class="bar-wrap">
+      <div class="bar-track" id="barTrack"></div>
+      <div class="objetivo-line">Objetivo: <span id="objetivoVal">22</span>h</div>
+    </div>
+
+    <div class="ready-banner" id="readyBanner" style="display:none;">
+      ✓ Ya puedes cambiar de alineador · <u style="cursor:pointer" id="bannerOpenAlarm">Ver opciones</u>
+    </div>
+
+    <div class="timer-panel" id="timerPanel" style="display:none;">
+      <div class="ttl">Temporizador activo</div>
+      <div class="clock" id="timerClock">00:00</div>
+    </div>
+
+    <div class="tap-hint">Toca aquí para cambiar</div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-undo" id="undoBtn">↩ Deshacer</button>
+    <button class="btn btn-secondary" id="editBtn">✎ Editar</button>
+  </div>
+
+</div>
+
+<!-- ===== Modal: cuánto tiempo sin alineadores ===== -->
+<div class="overlay" id="ferulaReadyOverlay">
+  <div class="modal" style="text-align:center;">
+    <div style="font-size:2rem;margin-bottom:8px;">🦷</div>
+    <h3 style="margin-bottom:6px;">Ya puedes pasar al siguiente alineador</h3>
+    <p style="color:var(--text-dim);font-size:.85rem;margin:0 0 18px;">Recuerda hacerte selfies para ver tu progreso</p>
+    <button class="btn btn-ok" id="ferulaReadyCambioYaBtn" style="width:100%;margin-bottom:10px;padding:13px;">Cambio ya</button>
+    <div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:4px;">
+      <button class="btn btn-secondary" id="ferulaReadyLaterBtn" style="flex:1;padding:11px;">Cambio en</button>
+      <input type="number" id="ferulaReadyDelayInput" value="30" min="1" max="999"
+        style="width:64px;background:#0003;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:10px 6px;font-family:inherit;font-size:.95rem;text-align:center;">
+      <span style="color:var(--text-dim);font-size:.9rem;">min</span>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="ferulaConfirmOverlay">
+  <div class="modal" style="text-align:center;">
+    <h3>¿Cambias al siguiente alineador ahora?</h3>
+    <p style="color:var(--text-dim);font-size:.85rem;margin:0 0 18px;">Esto reiniciará los contadores de la férula actual</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="ferulaConfirmNoBtn">Cancelar</button>
+      <button class="btn btn-ok" id="ferulaConfirmSiBtn">Sí, cambio ahora</button>
+    </div>
+  </div>
+</div>
+<div class="overlay" id="sinModalOverlay">
+  <div class="modal">
+    <h3>¿Cuánto tiempo sin alineadores?</h3>
+    <div class="preset-grid" id="presetGrid">
+      <button class="preset-btn" data-min="5">5 min</button>
+      <button class="preset-btn active" data-min="15">15 min</button>
+      <button class="preset-btn" data-min="30">30 min</button>
+      <button class="preset-btn" data-min="45">45 min</button>
+      <button class="preset-btn" data-min="60">1 h</button>
+      <button class="preset-btn" data-min="120">2 h</button>
+    </div>
+    <div class="field">
+      <label>O personaliza (minutos):</label>
+      <input type="number" id="customMin" value="15" min="1">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="sinCancelBtn">Cancelar</button>
+      <button class="btn btn-ok" id="sinConfirmBtn">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: alarma fin temporizador ===== -->
+<div class="overlay" id="alarmOverlay">
+  <div class="modal" style="text-align:center;">
+    <div style="font-size:2.4rem;">⏰</div>
+    <h3>¡Hora de ponértelos!</h3>
+    <div class="help-text" style="text-align:center;">Ya pasó el tiempo programado</div>
+    <div class="modal-actions" style="flex-direction:column;">
+      <button class="btn btn-ok" id="alarmPutBackBtn" style="margin-bottom:8px;">Sí, me los pongo</button>
+      <button class="btn btn-secondary" id="alarmPlus5Btn" style="margin-bottom:8px;">+5 minutos más</button>
+      <button class="btn btn-secondary" id="alarmPlus10Btn">+10 minutos más</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: editar tiempos manualmente ===== -->
+<div class="overlay" id="editModalOverlay">
+  <div class="modal">
+    <h3>Tramos de hoy</h3>
+    <div class="help-text">Toca un tramo para corregir su hora de inicio o de fin.</div>
+    <div id="timelineList" style="margin-bottom:14px;"></div>
+    <div id="timelineTotals" style="font-size:.85rem;color:var(--text-dim);margin-bottom:14px;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ok" id="editCloseBtn" style="width:100%;">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="segmentModalOverlay">
+  <div class="modal">
+    <h3 id="segmentModalTitle">Editar tramo</h3>
+    <div class="field" id="segStartField">
+      <label>Hora de inicio</label>
+      <input type="time" id="segStartInput">
+    </div>
+    <div class="field" id="segEndField">
+      <label>Hora de fin</label>
+      <input type="time" id="segEndInput">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="segCancelBtn">Cancelar</button>
+      <button class="btn btn-ok" id="segSaveBtn">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: editar férula actual ===== -->
+<div class="overlay" id="ferulaModalOverlay">
+  <div class="modal">
+    <h3>Férula actual</h3>
+    <div class="field">
+      <label>Número y lado</label>
+      <div style="display:flex;gap:8px;">
+        <select id="ferulaInputNum" class="select-dark" style="flex:1;padding:9px 10px;font-size:.95rem;"></select>
+        <select id="ferulaInputLetra" class="select-dark" style="flex:1;padding:9px 10px;font-size:.95rem;">
+          <option value="A">A</option>
+          <option value="B">B</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="ferulaCancelBtn">Cancelar</button>
+      <button class="btn btn-ok" id="ferulaSaveBtn">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: editar fecha revisión ===== -->
+<div class="overlay" id="revisionModalOverlay">
+  <div class="modal">
+    <h3>Próxima revisión</h3>
+    <div class="field">
+      <label>Fecha</label>
+      <input type="date" id="revisionInput">
+    </div>
+    <div class="field">
+      <label>Hora</label>
+      <input type="time" id="revisionTimeInput" value="10:00">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="revisionCancelBtn">Cancelar</button>
+      <button class="btn btn-ok" id="revisionSaveBtn">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Side menu ===== -->
+<div class="side-overlay" id="sideOverlay">
+  <div class="side-panel">
+    <button class="side-close" id="sideCloseBtn">&times;</button>
+    <div class="side-title">Configuración</div>
+
+    <!-- TRATAMIENTO -->
+    <div class="section-toggle">
+      <span>TRATAMIENTO</span>
+      <div class="switch on" id="treatmentSwitch"><div class="knob"></div></div>
+    </div>
+
+    <div id="treatmentGroup">
+      <div class="sub-row">
+        <span class="stxt">Férulas iguales (A)</span>
+        <div class="switch" id="igualesSwitch"><div class="knob"></div></div>
+      </div>
+      <div class="sub-row">
+        <span class="stxt">Férulas alternas (A-B)</span>
+        <div class="switch on" id="alternasSwitch"><div class="knob"></div></div>
+      </div>
+
+      <div class="sub-row indent">
+        <span class="stxt">Cambio de alineador A en</span>
+        <input type="number" id="daysAInput" min="1" value="7"> días
+      </div>
+      <div class="sub-row indent" id="daysBRow">
+        <span class="stxt">Cambio de alineador B en</span>
+        <input type="number" id="daysBInput" min="1" value="3"> días
+      </div>
+
+      <div class="sub-row" style="margin-top:8px;">
+        <span class="stxt">Férula actual</span>
+        <div style="display:flex;gap:6px;">
+          <select id="ferulaNumSelect" class="select-dark"></select>
+          <select id="ferulaLetraSelect" class="select-dark">
+            <option value="A">A</option>
+            <option value="B">B</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="sub-row" style="margin-top:8px;">
+        <span class="stxt">🚩 Objetivo diario</span>
+        <input type="number" id="objetivoInput" min="1" max="24" value="22"> h
+      </div>
+    </div>
+
+    <div class="menu-divider"></div>
+
+    <!-- POST TRATAMIENTO -->
+    <div class="section-toggle">
+      <span>POST TRATAMIENTO</span>
+      <div class="switch" id="postSwitch"><div class="knob"></div></div>
+    </div>
+    <div class="help-text">Avisos diarios para recordar usar los retenedores de dormir.</div>
+    <div id="postGroup" class="group-disabled">
+      <div class="sub-row">
+        <span class="stxt">Aviso a las</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <input type="time" id="postTime1" value="08:30">
+          <div class="switch" id="postTime1Switch"><div class="knob"></div></div>
+        </div>
+      </div>
+      <div class="sub-row">
+        <span class="stxt">Aviso a las</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <input type="time" id="postTime2" value="22:30">
+          <div class="switch" id="postTime2Switch"><div class="knob"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="menu-divider"></div>
+    <button class="btn btn-secondary" id="enableNotifBtn" style="width:100%;margin-bottom:8px;">🔔 Activar avisos sonoros</button>
+    <div class="help-text">Si cierras del todo el navegador, el aviso puede no sonar (limitación de los móviles). Para más fiabilidad, deja la app abierta en segundo plano o instálala como app (Añadir a pantalla de inicio).</div>
+
+  </div>
+</div>
+
+<div class="alert-toast" id="toast"></div>
+
+<script>
+/* ===================== STORAGE (localStorage con fallback en memoria) ===================== */
+const memStore = {};
+const storage = {
+  get(key, def){
+    try{
+      const v = localStorage.getItem(key);
+      return v===null ? def : JSON.parse(v);
+    }catch(e){ return (key in memStore) ? memStore[key] : def; }
+  },
+  set(key, val){
+    try{ localStorage.setItem(key, JSON.stringify(val)); }
+    catch(e){ memStore[key] = val; }
+  }
+};
+
+/* ===================== STATE ===================== */
+const defaultState = {
+  ferulaActual: '33-A',
+  alternancia: 'alternas',      // 'iguales' | 'alternas'
+  daysA: 7,
+  daysB: 3,
+  objetivoHoras: 22,
+  treatmentEnabled: true,
+  proximaRevision: null,         // ISO date string
+  proximaRevisionHora: '10:00',
+
+  status: 'con',                 // 'con' | 'sin'
+  statusSince: Date.now(),
+  priorDaysConMs: 0,             // total CON acumulado en días ANTERIORES de esta férula (se cierra cada medianoche)
+  priorDaysSinMs: 0,             // total SIN acumulado en días anteriores
+
+  todayDate: null,               // 'YYYY-MM-DD' del día actual
+  todaySegments: [],             // tramos CERRADOS de hoy: [{status:'con'|'sin', start:ts, end:ts}, ...]
+
+  sinTimerEnd: null,             // timestamp objetivo del temporizador SIN
+  ferulaAlarmFired: false,       // true si ya se disparó el aviso de cambio de férula hoy
+  cambioDelay: 30,               // minutos por defecto para "cambio en XX min"
+  lastStateBeforeUndo: null,
+
+  postEnabled: false,
+  postTime1: '08:30',
+  postTime1On: false,
+  postTime2: '22:30',
+  postTime2On: false
+};
+
+let state = storage.get('alitrack_state', null) || JSON.parse(JSON.stringify(defaultState));
+// Migración: asegurar que campos añadidos en versiones posteriores existen
+if(!Array.isArray(state.todaySegments)) state.todaySegments = [];
+if(state.priorDaysConMs === undefined) state.priorDaysConMs = state.accumConMs || 0;
+if(state.priorDaysSinMs === undefined) state.priorDaysSinMs = state.accumSinMs || 0;
+if(state.ferulaAlarmFired === undefined) state.ferulaAlarmFired = false;
+if(state.cambioDelay === undefined) state.cambioDelay = 30;
+if(state.treatmentEnabled === undefined) state.treatmentEnabled = true;
+if(state.todayDate === undefined) state.todayDate = null;
+if(state.proximaRevisionHora === undefined) state.proximaRevisionHora = '10:00';
+save();
+function save(){ storage.set('alitrack_state', state); }
+
+/* ===================== HELPERS ===================== */
+function fmtHMS(ms){
+  if(ms<0) ms=0;
+  const totalSec = Math.floor(ms/1000);
+  const h = Math.floor(totalSec/3600);
+  const m = Math.floor((totalSec%3600)/60);
+  const s = totalSec%60;
+  return [h,m,s].map(n=>String(n).padStart(2,'0')).join(':');
+}
+function fmtDHM(ms){
+  if(ms<=0) return '0h';
+  const totalMin = Math.floor(ms/60000);
+  const d = Math.floor(totalMin/1440);
+  const h = Math.floor((totalMin%1440)/60);
+  if(d>0) return `${d}d ${h}h`;
+  const m = totalMin%60;
+  return `${h}h ${m}m`;
+}
+function fmtDaysAtTarget(remainingWearMs){
+  if(remainingWearMs<=0) return 'Listo';
+  const totalMin = Math.round(remainingWearMs/60000);
+  const h = Math.floor(totalMin/60), m = totalMin%60;
+  if(h>=48) return `${Math.floor(h/24)}d ${h%24}h de uso`;
+  if(h>=1)  return `${h}h ${m}m de uso`;
+  return `${m}m de uso`;
+}
+function currentLetter(){
+  return (state.ferulaActual.split('-')[1]||'A').toUpperCase();
+}
+function currentNumber(){
+  return state.ferulaActual.split('-')[0];
+}
+function formatFerula(num, letra){
+  return state.alternancia==='iguales' ? `${num}` : `${num}-${letra}`;
+}
+function fillNumberSelect(sel, max){
+  sel.innerHTML='';
+  for(let i=1;i<=max;i++){
+    const o=document.createElement('option'); o.value=i; o.textContent=i; sel.appendChild(o);
+  }
+}
+fillNumberSelect(document.getElementById('ferulaNumSelect'), 200);
+fillNumberSelect(document.getElementById('ferulaInputNum'), 200);
+function targetDaysForCurrent(){
+  if(state.alternancia==='iguales') return state.daysA;
+  return currentLetter()==='B' ? state.daysB : state.daysA;
+}
+function targetMsForCurrent(){
+  return targetDaysForCurrent() * state.objetivoHoras * 3600000;
+}
+function dateKeyOf(ts){
+  const d = new Date(ts);
+  const pad = n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+function nextDateKey(key){
+  const d = new Date(key+'T00:00:00');
+  d.setDate(d.getDate()+1);
+  return dateKeyOf(d.getTime());
+}
+function startOfDayTs(key){
+  return new Date(key+'T00:00:00').getTime();
+}
+function startOfToday(){ return startOfDayTs(dateKeyOf(Date.now())); }
+
+/* Cierra días pasados volcando su tiempo en priorDaysConMs/SinMs, y vacía los tramos de hoy
+   al cruzar cada medianoche. Soporta varios días saltados si la app estuvo cerrada. */
+function rolloverIfNeeded(){
+  if(state.todayDate === null){ state.todayDate = dateKeyOf(Date.now()); save(); return; }
+  let safety = 0;
+  while(state.todayDate !== dateKeyOf(Date.now()) && safety < 3650){
+    safety++;
+    const oldDayStart = startOfDayTs(state.todayDate);
+    const oldDayEnd = oldDayStart + 86400000;
+    // parte del tramo en curso (status actual) que cae dentro del día que se cierra
+    const segStart = Math.max(state.statusSince, oldDayStart);
+    if(segStart < oldDayEnd){
+      const part = oldDayEnd - segStart;
+      if(state.status==='con') state.priorDaysConMs += part; else state.priorDaysSinMs += part;
+    }
+    // tramos ya cerrados de ese día
+    state.todaySegments.forEach(s=>{
+      const dur = Math.max(0, s.end - s.start);
+      if(s.status==='con') state.priorDaysConMs += dur; else state.priorDaysSinMs += dur;
+    });
+    state.todaySegments = [];
+    state.todayDate = nextDateKey(state.todayDate);
+  }
+  save();
+}
+
+function closedTodayConMs(){ return state.todaySegments.filter(s=>s.status==='con').reduce((a,s)=>a+(s.end-s.start),0); }
+function closedTodaySinMs(){ return state.todaySegments.filter(s=>s.status==='sin').reduce((a,s)=>a+(s.end-s.start),0); }
+
+function todayLiveConMs(){
+  rolloverIfNeeded();
+  let v = closedTodayConMs();
+  if(state.status==='con') v += Math.max(0, Date.now()-Math.max(state.statusSince, startOfToday()));
+  return v;
+}
+function todayLiveSinMs(){
+  rolloverIfNeeded();
+  let v = closedTodaySinMs();
+  if(state.status==='sin') v += Math.max(0, Date.now()-Math.max(state.statusSince, startOfToday()));
+  return v;
+}
+// total de la férula actual = días anteriores cerrados + lo que llevamos hoy
+function liveConMs(){ rolloverIfNeeded(); return state.priorDaysConMs + todayLiveConMs(); }
+function liveSinMs(){ rolloverIfNeeded(); return state.priorDaysSinMs + todayLiveSinMs(); }
+
+/* ===================== RENDER ===================== */
+const el = id=>document.getElementById(id);
+
+function render(){
+  el('ferulaIdDisplay').textContent = formatFerula(currentNumber(), currentLetter());
+  el('ferulaNumSelect').value = currentNumber();
+  el('ferulaLetraSelect').value = currentLetter();
+  el('ferulaLetraSelect').style.display = state.alternancia==='iguales' ? 'none':'inline-block';
+  el('objetivoVal').textContent = state.objetivoHoras;
+  el('objetivoInput').value = state.objetivoHoras;
+  el('daysAInput').value = state.daysA;
+  el('daysBInput').value = state.daysB;
+
+  // revisión
+  if(state.proximaRevision){
+    const d = new Date(`${state.proximaRevision}T${state.proximaRevisionHora||'00:00'}:00`);
+    el('revisionDateDisplay').textContent = d.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'}) + ' · ' + (state.proximaRevisionHora||'');
+    const diff = d.getTime()-Date.now();
+    el('revisionCountdown').textContent = diff>0 ? fmtDHM(diff).toUpperCase() : '¡hoy!';
+  } else {
+    el('revisionDateDisplay').textContent = 'Tap para fijar';
+    el('revisionCountdown').textContent = '—';
+  }
+
+  // cambio de férula countdown
+  const target = targetMsForCurrent();
+  const remaining = target - liveConMs();
+  const banner = el('readyBanner');
+  if(remaining<=0){
+    el('cambioCountdown').textContent = 'Listo';
+    banner.style.display='block';
+    if(!state.ferulaAlarmFired){
+      state.ferulaAlarmFired = true;
+      save();
+      openFerulaReadyAlarm();
+    }
+  } else {
+    el('cambioCountdown').textContent = fmtDaysAtTarget(remaining);
+    banner.style.display='none';
+    state.ferulaAlarmFired = false; // reset si editan tiempos y vuelve a subir
+  }
+
+  // estado card
+  const card = el('statusCard');
+  const title = el('statusTitle');
+  if(state.status==='con'){
+    card.classList.remove('sin');
+    title.textContent = 'CON ALINEADORES';
+  } else {
+    card.classList.add('sin');
+    title.textContent = 'SIN ALINEADORES';
+  }
+
+  el('conTimeVal').textContent = fmtHMS(todayLiveConMs());
+  el('sinTimeVal').textContent = fmtHMS(todayLiveSinMs());
+
+  // barra: escala fija de 24h DEL DÍA ACTUAL, con marcador vertical en la hora objetivo
+  const dayMs = 24*3600000;
+  const conPct = Math.min(100,(todayLiveConMs()/dayMs)*100);
+  const sinPct = Math.min(100-conPct,(todayLiveSinMs()/dayMs)*100);
+  const gapPct = Math.max(0,100-conPct-sinPct);
+  const markerPct = Math.min(100,(state.objetivoHoras/24)*100);
+  el('barTrack').innerHTML =
+    `<div class="bar-con" style="width:${conPct}%"></div>`+
+    `<div class="bar-gap" style="width:${gapPct}%"></div>`+
+    `<div class="bar-sin" style="width:${sinPct}%"></div>`+
+    `<div class="bar-marker" style="left:${markerPct}%"></div>`;
+
+  // temporizador SIN
+  const timerPanel = el('timerPanel');
+  if(state.status==='sin' && state.sinTimerEnd){
+    timerPanel.style.display='block';
+    const left = state.sinTimerEnd-Date.now();
+    const clock = el('timerClock');
+    if(left<=0){
+      clock.textContent='00:00';
+      clock.classList.add('warn');
+      openAlarm();
+    } else {
+      clock.classList.remove('warn');
+      const totalSec=Math.floor(left/1000);
+      clock.textContent = `${String(Math.floor(totalSec/60)).padStart(2,'0')}:${String(totalSec%60).padStart(2,'0')}`;
+    }
+  } else {
+    timerPanel.style.display='none';
+  }
+
+  // menú lateral - reflejar estado
+  el('treatmentSwitch').classList.toggle('on', state.treatmentEnabled);
+  el('treatmentGroup').classList.toggle('group-disabled', !state.treatmentEnabled);
+  el('igualesSwitch').classList.toggle('on', state.alternancia==='iguales');
+  el('alternasSwitch').classList.toggle('on', state.alternancia==='alternas');
+  el('daysBRow').style.opacity = state.alternancia==='alternas' ? '1':'.4';
+  el('daysBRow').style.pointerEvents = state.alternancia==='alternas' ? 'auto':'none';
+
+  el('postSwitch').classList.toggle('on', state.postEnabled);
+  el('postGroup').classList.toggle('group-disabled', !state.postEnabled);
+  el('postTime1').value = state.postTime1;
+  el('postTime2').value = state.postTime2;
+  el('postTime1Switch').classList.toggle('on', state.postTime1On);
+  el('postTime2Switch').classList.toggle('on', state.postTime2On);
+}
+
+/* ===================== TOAST ===================== */
+let toastTimeout;
+function toast(msg){
+  const t = el('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+/* ===================== STATUS CARD CLICK ===================== */
+el('statusCard').addEventListener('click', (e)=>{
+  if(state.status==='con'){
+    // pasar a SIN -> preguntar duración
+    openSinModal();
+  } else {
+    // pasar a CON directamente
+    switchToCon();
+  }
+});
+
+function commitCurrentSegment(){
+  rolloverIfNeeded();
+  const now = Date.now();
+  const segStart = Math.max(state.statusSince, startOfToday());
+  if(now > segStart){
+    state.todaySegments.push({status: state.status, start: segStart, end: now});
+  }
+}
+
+function switchToCon(){
+  state.lastStateBeforeUndo = JSON.parse(JSON.stringify(state));
+  commitCurrentSegment();
+  state.status='con';
+  state.statusSince=Date.now();
+  state.sinTimerEnd=null;
+  save(); render();
+}
+function switchToSin(minutes){
+  state.lastStateBeforeUndo = JSON.parse(JSON.stringify(state));
+  commitCurrentSegment();
+  state.status='sin';
+  state.statusSince=Date.now();
+  state.sinTimerEnd = Date.now() + minutes*60000;
+  save(); render();
+}
+
+/* ===================== MODAL: SIN duración ===================== */
+let chosenMinutes = 15;
+function openSinModal(){
+  chosenMinutes = 15;
+  document.querySelectorAll('.preset-btn').forEach(b=>b.classList.toggle('active', b.dataset.min=='15'));
+  el('customMin').value = 15;
+  el('sinModalOverlay').classList.add('show');
+}
+document.querySelectorAll('.preset-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    chosenMinutes = parseInt(btn.dataset.min,10);
+    el('customMin').value = chosenMinutes;
+  });
+});
+el('customMin').addEventListener('input', ()=>{
+  document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+  chosenMinutes = parseInt(el('customMin').value,10)||1;
+});
+el('sinCancelBtn').addEventListener('click', ()=>el('sinModalOverlay').classList.remove('show'));
+el('sinConfirmBtn').addEventListener('click', ()=>{
+  el('sinModalOverlay').classList.remove('show');
+  switchToSin(chosenMinutes);
+});
+
+
+/* ===================== ALARMA fin temporizador ===================== */
+let alarmShown = false;
+function openAlarm(){
+  if(alarmShown) return;
+  alarmShown = true;
+  el('alarmOverlay').classList.add('show');
+  notifyUser('¡Hora de ponértelos!', 'Ya pasó el tiempo programado sin alineadores.');
+  clearInterval(alarmRepeatInterval);
+  alarmRepeatInterval = setInterval(()=>{ if(alarmShown) playAlarmSound(); }, 12000);
+}
+let alarmRepeatInterval = null;
+function closeAlarm(){
+  alarmShown = false;
+  clearInterval(alarmRepeatInterval);
+  el('alarmOverlay').classList.remove('show');
+}
+el('alarmPutBackBtn').addEventListener('click', ()=>{
+  closeAlarm();
+  switchToCon();
+});
+el('alarmPlus5Btn').addEventListener('click', ()=>{
+  state.sinTimerEnd = Date.now()+5*60000;
+  closeAlarm(); save(); render();
+});
+el('alarmPlus10Btn').addEventListener('click', ()=>{
+  state.sinTimerEnd = Date.now()+10*60000;
+  closeAlarm(); save(); render();
+});
+
+/* ===================== UNDO ===================== */
+el('undoBtn').addEventListener('click', ()=>{
+  if(!state.lastStateBeforeUndo){ toast('Nada que deshacer'); return; }
+  state = state.lastStateBeforeUndo;
+  save(); render();
+  toast('Cambio deshecho');
+});
+
+/* ===================== EDITAR tiempos: TIMELINE de tramos de hoy ===================== */
+function fmtClock(ts){
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function fmtDur(ms){
+  const totalMin = Math.max(0,Math.round(ms/60000));
+  const h = Math.floor(totalMin/60), m = totalMin%60;
+  if(h>0) return m>0 ? `${h} h ${m} min` : `${h} h`;
+  return `${m} min`;
+}
+// devuelve los tramos de HOY (cerrados + el que está en curso), con start del primero forzado a 00:00
+function getTodayTimeline(){
+  rolloverIfNeeded();
+  const segs = state.todaySegments.map((s,i)=>({status:s.status, start:s.start, end:s.end, idx:i, live:false}));
+  const liveStart = Math.max(state.statusSince, startOfToday());
+  if(Date.now() > liveStart){
+    segs.push({status:state.status, start:liveStart, end:Date.now(), idx:segs.length, live:true});
+  }
+  if(segs.length>0) segs[0].start = startOfToday();
+  return segs;
+}
+
+let editingSegment = null; // referencia al tramo que se está editando
+
+function renderTimeline(){
+  const segs = getTodayTimeline();
+  const list = el('timelineList');
+  list.innerHTML = '';
+  segs.forEach(seg=>{
+    const row = document.createElement('div');
+    row.className = 'timeline-row ' + seg.status + (seg.live?' live':'');
+    const rangeTxt = seg.live ? `${fmtClock(seg.start)} ~ ahora` : `${fmtClock(seg.start)} ~ ${fmtClock(seg.end)}`;
+    row.innerHTML = `
+      <div>
+        <div class="tl-status">${seg.status==='con'?'CON':'SIN'}</div>
+        <div class="tl-range">${rangeTxt}</div>
+      </div>
+      <div class="tl-dur">${fmtDur(seg.end-seg.start)}</div>
+    `;
+    row.addEventListener('click', ()=>openSegmentModal(seg));
+    list.appendChild(row);
+  });
+  const totalCon = segs.filter(s=>s.status==='con').reduce((a,s)=>a+(s.end-s.start),0);
+  const totalSin = segs.filter(s=>s.status==='sin').reduce((a,s)=>a+(s.end-s.start),0);
+  el('timelineTotals').textContent = `Hoy en total — CON: ${fmtDur(totalCon)} · SIN: ${fmtDur(totalSin)}`;
+}
+
+el('editBtn').addEventListener('click', ()=>{
+  renderTimeline();
+  el('editModalOverlay').classList.add('show');
+});
+el('editCloseBtn').addEventListener('click', ()=>el('editModalOverlay').classList.remove('show'));
+
+function openSegmentModal(seg){
+  editingSegment = seg;
+  el('segmentModalTitle').textContent = `Tramo ${seg.status==='con'?'CON':'SIN'} alineadores`;
+  el('segStartInput').value = fmtClock(seg.start);
+  el('segEndInput').value = seg.live ? fmtClock(Date.now()) : fmtClock(seg.end);
+  // el primer tramo del día siempre empieza a las 00:00 (no editable)
+  el('segStartField').style.display = seg.idx===0 ? 'none' : 'block';
+  // el tramo en curso no tiene "fin" editable (sigue corriendo)
+  el('segEndField').style.display = seg.live ? 'none' : 'block';
+  el('segmentModalOverlay').classList.add('show');
+}
+el('segCancelBtn').addEventListener('click', ()=>el('segmentModalOverlay').classList.remove('show'));
+
+el('segSaveBtn').addEventListener('click', ()=>{
+  const seg = editingSegment;
+  if(!seg) return;
+  const todayStart = startOfToday();
+  const now = Date.now();
+
+  function parseTimeToday(val, fallback){
+    const m = /^(\d{1,2}):(\d{2})$/.exec(val||'');
+    if(!m) return fallback;
+    const d = new Date(); d.setHours(parseInt(m[1],10), parseInt(m[2],10), 0, 0);
+    return d.getTime();
+  }
+
+  let newStart = seg.idx===0 ? todayStart : parseTimeToday(el('segStartInput').value, seg.start);
+  let newEnd = seg.live ? now : parseTimeToday(el('segEndInput').value, seg.end);
+
+  // límites de seguridad: dentro de hoy y sin pasarse de "ahora"
+  newStart = Math.max(todayStart, Math.min(newStart, now));
+  newEnd = Math.max(todayStart, Math.min(newEnd, now));
+  if(newEnd <= newStart){ toast('La hora de fin debe ser posterior al inicio'); return; }
+
+  state.lastStateBeforeUndo = JSON.parse(JSON.stringify(state));
+
+  const segs = state.todaySegments;
+  if(!seg.live){
+    segs[seg.idx].start = newStart;
+    segs[seg.idx].end = newEnd;
+  }
+  // cascada hacia atrás: el tramo anterior termina cuando empieza este
+  if(seg.idx>0){
+    if(seg.live) segs[seg.idx-1].end = newStart;
+    else segs[seg.idx-1].end = newStart;
+  }
+  // cascada hacia adelante: el siguiente tramo (o el "ahora" en curso) empieza cuando este termina
+  if(!seg.live){
+    if(seg.idx < segs.length-1){
+      segs[seg.idx+1].start = newEnd;
+    } else {
+      // este era el último tramo cerrado: el tramo en curso pasa a empezar en newEnd
+      state.statusSince = newEnd;
+    }
+  }
+
+  el('segmentModalOverlay').classList.remove('show');
+  save();
+  renderTimeline();
+  render();
+});
+
+/* ===================== EDITAR férula (desde pantalla principal) ===================== */
+el('ferulaIdDisplay').addEventListener('click', ()=>{
+  el('ferulaInputNum').value = currentNumber();
+  el('ferulaInputLetra').value = currentLetter();
+  el('ferulaInputLetra').style.display = state.alternancia==='iguales' ? 'none':'block';
+  el('ferulaModalOverlay').classList.add('show');
+});
+el('ferulaCancelBtn').addEventListener('click', ()=>el('ferulaModalOverlay').classList.remove('show'));
+el('ferulaSaveBtn').addEventListener('click', ()=>{
+  applyFerulaChange(el('ferulaInputNum').value, el('ferulaInputLetra').value);
+  el('ferulaModalOverlay').classList.remove('show');
+});
+
+/* ===================== EDITAR revisión ===================== */
+el('revisionDateDisplay').addEventListener('click', ()=>{
+  el('revisionInput').value = state.proximaRevision || '';
+  el('revisionTimeInput').value = state.proximaRevisionHora || '10:00';
+  el('revisionModalOverlay').classList.add('show');
+});
+el('revisionCancelBtn').addEventListener('click', ()=>el('revisionModalOverlay').classList.remove('show'));
+el('revisionSaveBtn').addEventListener('click', ()=>{
+  state.proximaRevision = el('revisionInput').value || null;
+  state.proximaRevisionHora = el('revisionTimeInput').value || '10:00';
+  el('revisionModalOverlay').classList.remove('show');
+  save(); render();
+});
+
+/* ===================== MENÚ LATERAL ===================== */
+el('menuBtn').addEventListener('click', ()=>el('sideOverlay').classList.add('show'));
+el('sideCloseBtn').addEventListener('click', ()=>el('sideOverlay').classList.remove('show'));
+el('sideOverlay').addEventListener('click', (e)=>{
+  if(e.target===el('sideOverlay')) el('sideOverlay').classList.remove('show');
+});
+
+function toggleSwitch(elm, on){ elm.classList.toggle('on', on); }
+
+el('igualesSwitch').addEventListener('click', ()=>{
+  state.alternancia='iguales'; save(); render();
+});
+el('alternasSwitch').addEventListener('click', ()=>{
+  state.alternancia='alternas'; save(); render();
+});
+el('daysAInput').addEventListener('change', ()=>{
+  state.daysA = parseInt(el('daysAInput').value,10)||1; save(); render();
+});
+el('daysBInput').addEventListener('change', ()=>{
+  state.daysB = parseInt(el('daysBInput').value,10)||1; save(); render();
+});
+function applyFerulaChange(num, letra){
+  state.ferulaActual = formatFerula(num, letra);
+  state.priorDaysConMs = 0; state.priorDaysSinMs = 0;
+  save(); render();
+}
+el('ferulaNumSelect').addEventListener('change', ()=>{
+  applyFerulaChange(el('ferulaNumSelect').value, el('ferulaLetraSelect').value);
+});
+el('ferulaLetraSelect').addEventListener('change', ()=>{
+  applyFerulaChange(el('ferulaNumSelect').value, el('ferulaLetraSelect').value);
+});
+el('objetivoInput').addEventListener('change', ()=>{
+  state.objetivoHoras = parseFloat(el('objetivoInput').value)||1; save(); render();
+});
+
+el('treatmentSwitch').addEventListener('click', ()=>{
+  if(state.treatmentEnabled) return; // ya activo, no se puede dejar todo apagado
+  state.treatmentEnabled = true;
+  state.postEnabled = false;
+  save(); render();
+});
+el('postSwitch').addEventListener('click', ()=>{
+  if(state.postEnabled){ return; } // ya activo, no se puede dejar todo apagado
+  state.postEnabled = true;
+  state.treatmentEnabled = false;
+  save(); render();
+});
+el('postTime1Switch').addEventListener('click', ()=>{
+  state.postTime1On = !state.postTime1On; save(); render();
+});
+el('postTime2Switch').addEventListener('click', ()=>{
+  state.postTime2On = !state.postTime2On; save(); render();
+});
+el('postTime1').addEventListener('change', ()=>{ state.postTime1=el('postTime1').value; save(); });
+el('postTime2').addEventListener('change', ()=>{ state.postTime2=el('postTime2').value; save(); });
+
+/* ===================== ALARMA: cambio de FÉRULA ===================== */
+let ferulaAlarmRepeat = null;
+function openFerulaReadyAlarm(){
+  el('ferulaReadyDelayInput').value = state.cambioDelay || 30;
+  el('ferulaReadyOverlay').classList.add('show');
+  playCelebrationSound();
+  clearInterval(ferulaAlarmRepeat);
+  ferulaAlarmRepeat = setInterval(()=>{ if(el('ferulaReadyOverlay').classList.contains('show')) playCelebrationSound(); }, 14000);
+  if('Notification' in window && Notification.permission==='granted'){
+    try{ new Notification('🦷 Cambia de alineador', {body:'Ya puedes pasar al siguiente. ¡Hazte un selfie!', tag:'alitrack-ferula'}); }catch(e){}
+  }
+}
+function closeFerulaReadyAlarm(){
+  clearInterval(ferulaAlarmRepeat);
+  el('ferulaReadyOverlay').classList.remove('show');
+}
+
+el('bannerOpenAlarm').addEventListener('click', (e)=>{ e.stopPropagation(); openFerulaReadyAlarm(); });
+
+// "Cambio ya" → pedir confirmación
+el('ferulaReadyCambioYaBtn').addEventListener('click', ()=>{
+  closeFerulaReadyAlarm();
+  el('ferulaConfirmOverlay').classList.add('show');
+});
+
+// "Cambio en XX min" → cerrar alarma, programar temporizador, abrir de nuevo al llegar
+let ferulaDelayTimer = null;
+el('ferulaReadyLaterBtn').addEventListener('click', ()=>{
+  const mins = parseInt(el('ferulaReadyDelayInput').value,10)||30;
+  state.cambioDelay = mins;
+  save();
+  closeFerulaReadyAlarm();
+  clearTimeout(ferulaDelayTimer);
+  ferulaDelayTimer = setTimeout(()=>{ openFerulaReadyAlarm(); }, mins*60000);
+  toast(`Aviso en ${mins} min`);
+});
+
+// Confirmación Sí → avanzar férula automáticamente
+el('ferulaConfirmSiBtn').addEventListener('click', ()=>{
+  el('ferulaConfirmOverlay').classList.remove('show');
+  advanceFerula();
+});
+
+// Confirmación No/Cancelar → volver a alarma con el delay guardado
+el('ferulaConfirmNoBtn').addEventListener('click', ()=>{
+  el('ferulaConfirmOverlay').classList.remove('show');
+  const mins = state.cambioDelay || 30;
+  clearTimeout(ferulaDelayTimer);
+  ferulaDelayTimer = setTimeout(()=>{ openFerulaReadyAlarm(); }, mins*60000);
+  toast(`Aviso en ${mins} min`);
+});
+
+function advanceFerula(){
+  state.lastStateBeforeUndo = JSON.parse(JSON.stringify(state));
+  rolloverIfNeeded();
+  // calcular la siguiente férula automáticamente
+  const parts = state.ferulaActual.split('-');
+  const num = parseInt(parts[0],10);
+  if(state.alternancia==='iguales'){
+    state.ferulaActual = String(num+1);
+  } else {
+    const letra = (parts[1]||'A').toUpperCase();
+    if(letra==='A') state.ferulaActual = `${num}-B`;
+    else state.ferulaActual = `${num+1}-A`;
+  }
+  // reiniciar contadores de la férula (priorDays + tramos de hoy del cómputo de cambio)
+  state.priorDaysConMs = 0; state.priorDaysSinMs = 0;
+  state.ferulaAlarmFired = false;
+  save(); render();
+  toast(`Cambiado a ${state.ferulaActual}`);
+}
+
+
+let audioCtx = null;
+function unlockAudio(){
+  if(audioCtx) return;
+  try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
+}
+document.addEventListener('click', unlockAudio, {once:true});
+
+function playAlarmSound(){
+  if(!audioCtx){ try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; } }
+  if(audioCtx.state==='suspended') audioCtx.resume();
+  // Aviso SIN alineadores: 4 notas urgentes
+  const notes = [880,659,880,1175];
+  let t = audioCtx.currentTime;
+  notes.forEach((freq)=>{
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type='sine'; osc.frequency.value=freq;
+    gain.gain.setValueAtTime(0,t);
+    gain.gain.linearRampToValueAtTime(0.25,t+0.02);
+    gain.gain.linearRampToValueAtTime(0,t+0.18);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t+0.2);
+    t += 0.22;
+  });
+}
+
+function playCelebrationSound(){
+  if(!audioCtx){ try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; } }
+  if(audioCtx.state==='suspended') audioCtx.resume();
+  // Fanfarria de cambio de alineador: escala ascendente con vibrato final
+  const notes = [523,659,784,1047,784,1047,1319];
+  const durs  = [0.12,0.12,0.12,0.20,0.10,0.10,0.40];
+  let t = audioCtx.currentTime;
+  notes.forEach((freq, i)=>{
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = i===notes.length-1 ? 'triangle' : 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.22, t+0.02);
+    gain.gain.linearRampToValueAtTime(0, t+durs[i]);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t+durs[i]+0.05);
+    t += durs[i] + 0.04;
+  });
+}
+
+function notifyUser(title, body){
+  playAlarmSound();
+  if('Notification' in window && Notification.permission==='granted'){
+    try{ new Notification(title, {body, tag:'alitrack-alarm'}); }catch(e){}
+  }
+}
+
+el('enableNotifBtn').addEventListener('click', ()=>{
+  unlockAudio();
+  playCelebrationSound();
+  if('Notification' in window){
+    Notification.requestPermission().then(p=>{
+      toast(p==='granted' ? '✓ Avisos activados' : 'Permiso no concedido — solo sonará in-app');
+    });
+  } else {
+    toast('Sonido activado');
+  }
+});
+
+
+function playOptimisticSound(){
+  if(!audioCtx){ try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; } }
+  if(audioCtx.state==='suspended') audioCtx.resume();
+  // Arpeggio mayor ascendente con rebote — alegre y suave
+  const notes = [523,659,784,659,784,1047];
+  const durs  = [0.10,0.10,0.10,0.10,0.10,0.35];
+  let t = audioCtx.currentTime;
+  notes.forEach((freq, i)=>{
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.20, t+0.015);
+    gain.gain.linearRampToValueAtTime(0, t+durs[i]);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t+durs[i]+0.05);
+    t += durs[i] + 0.03;
+  });
+}
+
+/* --- comprobador de alarmas post tratamiento (cada 30 s) --- */
+const lastFiredPost = {t1: null, t2: null};
+function checkPostAlarms(){
+  if(!state.postEnabled) return;
+  const now = new Date();
+  const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const dayKey = dateKeyOf(Date.now());
+  if(state.postTime1On && hhmm === state.postTime1 && lastFiredPost.t1 !== dayKey){
+    lastFiredPost.t1 = dayKey;
+    playOptimisticSound();
+    setTimeout(playOptimisticSound, 1800);
+    if('Notification' in window && Notification.permission==='granted')
+      try{ new Notification('😴 Retenedores', {body:`Hora de ponerte los retenedores (${state.postTime1})`, tag:'alitrack-post1'}); }catch(e){}
+    toast(`😴 Hora de los retenedores (${state.postTime1})`);
+  }
+  if(state.postTime2On && hhmm === state.postTime2 && lastFiredPost.t2 !== dayKey){
+    lastFiredPost.t2 = dayKey;
+    playOptimisticSound();
+    setTimeout(playOptimisticSound, 1800);
+    if('Notification' in window && Notification.permission==='granted')
+      try{ new Notification('😴 Retenedores', {body:`Hora de ponerte los retenedores (${state.postTime2})`, tag:'alitrack-post2'}); }catch(e){}
+    toast(`😴 Hora de los retenedores (${state.postTime2})`);
+  }
+}
+setInterval(checkPostAlarms, 30000);
+
+setInterval(render, 1000);
+render();
+</script>
+</body>
+</html>
