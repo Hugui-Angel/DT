@@ -74,14 +74,14 @@
   }
   .status-card.sin{border-color:var(--sin);background:var(--sin-soft);}
   .status-title{
-    text-align:center;font-weight:700;letter-spacing:.08em;font-size:.95rem;
-    background:rgba(255,255,255,.05);border-radius:8px;padding:8px 0;margin-bottom:16px;
+    text-align:center;font-weight:700;letter-spacing:.08em;font-size:1.15rem;
+    background:rgba(255,255,255,.05);border-radius:8px;padding:10px 0;margin-bottom:16px;
   }
   .time-cols{display:flex;justify-content:space-between;margin-bottom:4px;}
   .time-col{display:flex;flex-direction:column;}
   .time-col.right{align-items:flex-end;}
-  .time-col .lbl{color:var(--text-dim);font-size:.85rem;}
-  .time-col .val{font-variant-numeric:tabular-nums;font-weight:700;font-size:1.15rem;margin-top:2px;}
+  .time-col .lbl{color:var(--text-dim);font-size:1rem;}
+  .time-col .val{font-variant-numeric:tabular-nums;font-weight:700;font-size:1.45rem;margin-top:2px;}
 
   .bar-wrap{margin:14px 0 6px;}
   .bar-track{height:16px;border-radius:8px;background:#d9dde3;overflow:hidden;display:flex;position:relative;}
@@ -111,8 +111,8 @@
   /* ---------- action buttons ---------- */
   .actions{display:flex;gap:10px;margin-top:18px;}
   .btn{
-    flex:1;border:none;border-radius:10px;padding:12px 8px;font-family:inherit;
-    font-size:.85rem;font-weight:600;cursor:pointer;display:flex;align-items:center;
+    flex:1;border:none;border-radius:10px;padding:14px 8px;font-family:inherit;
+    font-size:1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;
     justify-content:center;gap:6px;
   }
   .btn-secondary{background:var(--panel);color:var(--text);border:1px solid var(--line);}
@@ -224,11 +224,11 @@
     <div style="width:42px;"></div>
   </div>
 
-  <div class="header-row">
+  <div class="header-row" id="headerRow">
     <div class="ferula-block">
       <div class="label">FÉRULA ACTUAL</div>
       <div class="ferula-id" id="ferulaIdDisplay">33-A</div>
-      <div class="ferula-sub" id="ferulaSub">Faltan: <b id="cambioCountdown">—</b></div>
+      <div class="ferula-sub">Faltan:<br><b id="cambioCountdown">—</b></div>
     </div>
     <div class="revision-block">
       <div class="label">PRÓXIMA REVISIÓN</div>
@@ -444,11 +444,17 @@
 
       <div class="sub-row indent">
         <span class="stxt">Cambio de alineador A en</span>
-        <input type="number" id="daysAInput" min="1" value="7"> días
+        <div style="display:flex;align-items:center;gap:6px;">
+          <select id="daysAInput" class="select-dark"></select>
+          <span style="color:var(--text-dim);font-size:.85rem;">días</span>
+        </div>
       </div>
       <div class="sub-row indent" id="daysBRow">
         <span class="stxt">Cambio de alineador B en</span>
-        <input type="number" id="daysBInput" min="1" value="3"> días
+        <div style="display:flex;align-items:center;gap:6px;">
+          <select id="daysBInput" class="select-dark"></select>
+          <span style="color:var(--text-dim);font-size:.85rem;">días</span>
+        </div>
       </div>
 
       <div class="sub-row" style="margin-top:8px;">
@@ -613,6 +619,8 @@ function fillNumberSelect(sel, max){
 }
 fillNumberSelect(document.getElementById('ferulaNumSelect'), 200);
 fillNumberSelect(document.getElementById('ferulaInputNum'), 200);
+fillNumberSelect(document.getElementById('daysAInput'), 15);
+fillNumberSelect(document.getElementById('daysBInput'), 15);
 function targetDaysForCurrent(){
   if(state.alternancia==='iguales') return state.daysA;
   return currentLetter()==='B' ? state.daysB : state.daysA;
@@ -771,6 +779,7 @@ function render(){
 
   // menú lateral - reflejar estado
   // mostrar/ocultar bloque según modo
+  el('headerRow').style.display = state.treatmentEnabled ? 'flex' : 'none';
   el('treatmentMain').style.display = state.treatmentEnabled ? 'block' : 'none';
   el('postMain').style.display = state.postEnabled ? 'block' : 'none';
   if(state.postEnabled){
@@ -786,6 +795,7 @@ function render(){
 
   el('treatmentSwitch').classList.toggle('on', state.treatmentEnabled);
   el('treatmentGroup').classList.toggle('group-disabled', !state.treatmentEnabled);
+  el('postSwitch').classList.toggle('on', state.postEnabled);
   el('postGroup').classList.toggle('group-disabled', !state.postEnabled);
   el('postTime1').value = state.postTime1;
   el('postTime2').value = state.postTime2;
