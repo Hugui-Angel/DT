@@ -33,6 +33,9 @@
 
   /* ---------- top bar ---------- */
   .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
+  .topbar-title{text-align:center;flex:1;}
+  .topbar-title .sub{font-size:.72rem;color:var(--text-dim);letter-spacing:.04em;line-height:1.2;}
+  .topbar-title .main{font-size:1rem;color:var(--text);font-weight:700;letter-spacing:.05em;line-height:1.3;}
   .menu-btn{
     background:none;border:1px solid var(--line);color:var(--text);
     width:42px;height:42px;border-radius:10px;font-size:20px;cursor:pointer;
@@ -42,22 +45,22 @@
 
   /* ---------- header info row ---------- */
   .header-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;gap:10px;}
-  .ferula-block .label{color:var(--text-dim);font-size:.78rem;letter-spacing:.04em;}
+  .ferula-block .label{color:var(--text-dim);font-size:.95rem;letter-spacing:.06em;font-weight:600;}
   .ferula-id{
-    font-size:1.6rem;font-weight:700;letter-spacing:.03em;cursor:pointer;
-    border-bottom:1px dashed var(--line);display:inline-block;padding-bottom:2px;
+    font-size:2rem;font-weight:700;letter-spacing:.03em;cursor:pointer;
+    display:inline-block;padding-bottom:2px;
   }
-  .ferula-sub{color:var(--text-dim);font-size:.85rem;margin-top:4px;}
-  .ferula-sub b{color:var(--text);}
+  .ferula-sub{color:var(--text-dim);font-size:.95rem;margin-top:6px;}
+  .ferula-sub b{color:var(--text);font-size:1.1rem;}
 
   .revision-block{text-align:right;}
-  .revision-block .label{color:var(--text-dim);font-size:.78rem;}
+  .revision-block .label{color:var(--text-dim);font-size:.95rem;font-weight:600;letter-spacing:.06em;}
   .revision-date{
-    font-size:.95rem;cursor:pointer;border-bottom:1px dashed var(--line);
-    display:inline-block;padding-bottom:2px;margin-top:2px;
+    font-size:1rem;cursor:pointer;
+    display:inline-block;padding-bottom:2px;margin-top:4px;line-height:1.4;
   }
-  .revision-count{font-size:.85rem;color:var(--text-dim);margin-top:4px;}
-  .revision-count b{color:var(--text);}
+  .revision-count{font-size:.95rem;color:var(--text-dim);margin-top:4px;}
+  .revision-count b{color:var(--text);font-size:1rem;}
 
   /* ---------- main status card ---------- */
   .status-card{
@@ -214,10 +217,11 @@
 
   <div class="topbar">
     <button class="menu-btn" id="menuBtn">&#9776;</button>
-    <div style="text-align:right;">
-      <div style="font-size:.6rem;color:var(--text-dim);letter-spacing:.03em;">Dentali-allineatori Tracker</div>
-      <div style="font-size:.78rem;color:var(--text-dim);letter-spacing:.04em;">AliTrack</div>
+    <div class="topbar-title">
+      <div class="sub">Dentali-allineatori Tracker</div>
+      <div class="main">AliTrack</div>
     </div>
+    <div style="width:42px;"></div>
   </div>
 
   <div class="header-row">
@@ -233,6 +237,7 @@
     </div>
   </div>
 
+  <div id="treatmentMain">
   <div class="status-card" id="statusCard">
     <div class="status-title" id="statusTitle">CON ALINEADORES</div>
 
@@ -267,6 +272,17 @@
   <div class="actions">
     <button class="btn btn-undo" id="undoBtn">↩ Deshacer</button>
     <button class="btn btn-secondary" id="editBtn">✎ Editar</button>
+  </div>
+  </div>
+
+  <div id="postMain" style="display:none;">
+    <div class="status-card" style="border-color:var(--text-dim);background:#ffffff08;text-align:center;padding:28px 16px;">
+      <div style="font-size:1.1rem;font-weight:700;letter-spacing:.06em;margin-bottom:8px;">POST TRATAMIENTO</div>
+      <div style="color:var(--text-dim);font-size:.88rem;line-height:1.5;">
+        Modo retenedores activo<br>
+        Alarmas: <b id="postAlarmSummary">—</b>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -448,7 +464,15 @@
 
       <div class="sub-row" style="margin-top:8px;">
         <span class="stxt">🚩 Objetivo diario</span>
-        <input type="number" id="objetivoInput" min="1" max="24" value="22"> h
+        <div style="display:flex;align-items:center;gap:6px;">
+          <select id="objetivoInput" class="select-dark">
+            <option value="20">20</option>
+            <option value="21">21</option>
+            <option value="22" selected>22</option>
+            <option value="23">23</option>
+          </select>
+          <span style="color:var(--text-dim);font-size:.85rem;">h</span>
+        </div>
       </div>
     </div>
 
@@ -672,7 +696,9 @@ function render(){
   // revisión
   if(state.proximaRevision){
     const d = new Date(`${state.proximaRevision}T${state.proximaRevisionHora||'00:00'}:00`);
-    el('revisionDateDisplay').textContent = d.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'}) + ' · ' + (state.proximaRevisionHora||'');
+    const fechaTxt = d.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'});
+    const horaTxt = state.proximaRevisionHora || '';
+    el('revisionDateDisplay').innerHTML = `${fechaTxt}<br>${horaTxt}`;
     const diff = d.getTime()-Date.now();
     el('revisionCountdown').textContent = diff>0 ? fmtDHM(diff).toUpperCase() : '¡hoy!';
   } else {
@@ -744,14 +770,22 @@ function render(){
   }
 
   // menú lateral - reflejar estado
-  el('treatmentSwitch').classList.toggle('on', state.treatmentEnabled);
-  el('treatmentGroup').classList.toggle('group-disabled', !state.treatmentEnabled);
+  // mostrar/ocultar bloque según modo
+  el('treatmentMain').style.display = state.treatmentEnabled ? 'block' : 'none';
+  el('postMain').style.display = state.postEnabled ? 'block' : 'none';
+  if(state.postEnabled){
+    const parts = [];
+    if(state.postTime1On) parts.push(state.postTime1);
+    if(state.postTime2On) parts.push(state.postTime2);
+    el('postAlarmSummary').textContent = parts.length ? parts.join(' y ') : 'ninguna activa';
+  }
   el('igualesSwitch').classList.toggle('on', state.alternancia==='iguales');
   el('alternasSwitch').classList.toggle('on', state.alternancia==='alternas');
   el('daysBRow').style.opacity = state.alternancia==='alternas' ? '1':'.4';
   el('daysBRow').style.pointerEvents = state.alternancia==='alternas' ? 'auto':'none';
 
-  el('postSwitch').classList.toggle('on', state.postEnabled);
+  el('treatmentSwitch').classList.toggle('on', state.treatmentEnabled);
+  el('treatmentGroup').classList.toggle('group-disabled', !state.treatmentEnabled);
   el('postGroup').classList.toggle('group-disabled', !state.postEnabled);
   el('postTime1').value = state.postTime1;
   el('postTime2').value = state.postTime2;
@@ -1037,6 +1071,9 @@ el('daysBInput').addEventListener('change', ()=>{
 function applyFerulaChange(num, letra){
   state.ferulaActual = formatFerula(num, letra);
   state.priorDaysConMs = 0; state.priorDaysSinMs = 0;
+  state.todaySegments = [];
+  state.statusSince = Date.now();
+  state.ferulaAlarmFired = false;
   save(); render();
 }
 el('ferulaNumSelect').addEventListener('change', ()=>{
@@ -1046,7 +1083,7 @@ el('ferulaLetraSelect').addEventListener('change', ()=>{
   applyFerulaChange(el('ferulaNumSelect').value, el('ferulaLetraSelect').value);
 });
 el('objetivoInput').addEventListener('change', ()=>{
-  state.objetivoHoras = parseFloat(el('objetivoInput').value)||1; save(); render();
+  state.objetivoHoras = parseInt(el('objetivoInput').value,10)||22; save(); render();
 });
 
 el('treatmentSwitch').addEventListener('click', ()=>{
@@ -1067,8 +1104,16 @@ el('postTime1Switch').addEventListener('click', ()=>{
 el('postTime2Switch').addEventListener('click', ()=>{
   state.postTime2On = !state.postTime2On; save(); render();
 });
-el('postTime1').addEventListener('change', ()=>{ state.postTime1=el('postTime1').value; save(); });
-el('postTime2').addEventListener('change', ()=>{ state.postTime2=el('postTime2').value; save(); });
+el('postTime1').addEventListener('change', ()=>{
+  const v = el('postTime1').value;
+  state.postTime1 = v.length===4 ? '0'+v : v; // asegurar HH:MM
+  save();
+});
+el('postTime2').addEventListener('change', ()=>{
+  const v = el('postTime2').value;
+  state.postTime2 = v.length===4 ? '0'+v : v;
+  save();
+});
 
 /* ===================== ALARMA: cambio de FÉRULA ===================== */
 let ferulaAlarmRepeat = null;
