@@ -344,6 +344,17 @@
     </div>
   </div>
 </div>
+<div class="overlay" id="undoConfirmOverlay">
+  <div class="modal" style="text-align:center;">
+    <h3>¿Deshacer el último cambio?</h3>
+    <p style="color:var(--text-dim);font-size:.85rem;margin:0 0 18px;">Se restaurará el estado anterior</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="undoConfirmNoBtn">No, estaba ok</button>
+      <button class="btn btn-danger" id="undoConfirmYesBtn">Sí, deshacer</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="sinModalOverlay">
   <div class="modal">
     <h3>¿Cuánto tiempo sin alineadores?</h3>
@@ -940,8 +951,15 @@ el('alarmPlus10Btn').addEventListener('click', ()=>{
 /* ===================== UNDO ===================== */
 el('undoBtn').addEventListener('click', ()=>{
   if(!state.lastStateBeforeUndo){ toast('Nada que deshacer'); return; }
+  el('undoConfirmOverlay').classList.add('show');
+});
+el('undoConfirmNoBtn').addEventListener('click', ()=>{
+  el('undoConfirmOverlay').classList.remove('show');
+});
+el('undoConfirmYesBtn').addEventListener('click', ()=>{
   state = state.lastStateBeforeUndo;
   save(); render();
+  el('undoConfirmOverlay').classList.remove('show');
   toast('Cambio deshecho');
 });
 
@@ -964,7 +982,6 @@ function getTodayTimeline(){
   if(Date.now() > liveStart){
     segs.push({status:state.status, start:liveStart, end:Date.now(), idx:segs.length, live:true});
   }
-  if(segs.length>0) segs[0].start = startOfToday();
   return segs;
 }
 
@@ -1211,6 +1228,9 @@ el('ferulaConfirmNoBtn').addEventListener('click', ()=>{
 function advanceFerula(){
   state.lastStateBeforeUndo = JSON.parse(JSON.stringify(state));
   rolloverIfNeeded();
+  // cerrar el tramo CON de la férula anterior en el timeline de HOY antes de cambiar,
+  // para no perder ese tiempo ni el de los tramos SIN ya registrados hoy
+  commitCurrentSegment();
   // calcular la siguiente férula automáticamente
   const parts = state.ferulaActual.split('-');
   const num = parseInt(parts[0],10);
@@ -1221,9 +1241,10 @@ function advanceFerula(){
     if(letra==='A') state.ferulaActual = `${num}-B`;
     else state.ferulaActual = `${num+1}-A`;
   }
-  // reiniciar contadores de la férula (priorDays + tramos de hoy del cómputo de cambio)
+  // reiniciar el contador de cuenta atrás de la NUEVA férula (priorDays).
+  // OJO: state.todaySegments NO se toca — el día sigue repartiéndose entre
+  // alineador anterior CON, alineador actual CON y SIN, hasta las 00:00.
   state.priorDaysConMs = 0; state.priorDaysSinMs = 0;
-  state.todaySegments = [];
   state.statusSince = Date.now();
   state.ferulaAlarmFired = false;
   clearTimeout(ferulaDelayTimer);
