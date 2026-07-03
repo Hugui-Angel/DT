@@ -101,8 +101,10 @@
   .time-cols{display:flex;justify-content:space-between;margin-bottom:4px;}
   .time-col{display:flex;flex-direction:column;}
   .time-col.right{align-items:flex-end;}
-  .time-col .lbl{color:var(--text-dim);font-size:1rem;letter-spacing:.06em;text-transform:uppercase;}
+  .time-col .lbl{font-size:1rem;letter-spacing:.06em;text-transform:uppercase;}
   .time-col .val{font-variant-numeric:tabular-nums;font-weight:700;font-size:1.5rem;margin-top:4px;letter-spacing:.01em;}
+  .time-col.left .lbl,.time-col.left .val{color:#a9d3fb;}
+  .time-col.right .lbl,.time-col.right .val{color:#ffcb98;}
 
   .bar-wrap{margin:16px 0 6px;}
   .bar-track{height:14px;border-radius:7px;background:#ffffff14;overflow:hidden;display:flex;position:relative;}
@@ -110,7 +112,7 @@
   .bar-sin{height:100%;background:var(--sin);}
   .bar-gap{height:100%;background:repeating-linear-gradient(45deg,#0000,#0000 4px,#ffffff0d 4px,#ffffff0d 8px);}
   .bar-marker{position:absolute;top:-3px;bottom:-3px;width:3px;background:#fff9;border-radius:2px;}
-  .objetivo-line{text-align:right;font-size:.9rem;color:var(--text-dim);margin-top:8px;}
+  .objetivo-line{text-align:right;font-size:1.05rem;color:var(--text);font-weight:700;margin-top:8px;}
 
   .ready-banner{
     margin-top:16px;background:var(--ok);color:#08210f;font-weight:700;
@@ -119,13 +121,13 @@
   }
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.65;}}
 
-  .tap-hint{text-align:center;color:var(--text-dim);font-size:.9rem;margin-top:16px;letter-spacing:.03em;}
+  .tap-hint{text-align:center;color:var(--text);font-size:1.05rem;font-weight:700;margin-top:16px;letter-spacing:.03em;}
 
   /* ---------- timer panel (sin countdown) ---------- */
   .timer-panel{
     margin-top:16px;background:#00000026;border:1px solid var(--line);border-radius:var(--radius-sm);padding:13px;text-align:center;
   }
-  .timer-panel .ttl{font-size:.85rem;color:var(--text-dim);letter-spacing:.08em;text-transform:uppercase;}
+  .timer-panel .ttl{font-size:1.05rem;color:var(--text);font-weight:700;letter-spacing:.08em;text-transform:uppercase;}
   .timer-panel .clock{font-size:1.6rem;font-weight:700;margin:7px 0;font-variant-numeric:tabular-nums;}
   .timer-panel .clock.warn{color:var(--danger);}
 
@@ -137,7 +139,7 @@
     justify-content:center;gap:6px;transition:transform .1s, filter .1s;
   }
   .btn:active{transform:scale(.97);filter:brightness(.92);}
-  .btn-secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--line-strong);}
+  .btn-secondary{background:#454b58;color:var(--text);border:1px solid #5a616f;}
   .btn-undo{background:var(--sin-soft);color:#ffcb98;border:1px solid var(--sin-glow);}
   #editBtn{background:var(--con-soft);color:#a9d3fb;border:1px solid var(--con-glow);}
   .btn-ok{background:var(--ok);color:#06220f;box-shadow:var(--shadow-sm);}
@@ -288,8 +290,8 @@
       <div class="objetivo-line">Objetivo: <span id="objetivoVal">22</span>h</div>
     </div>
 
-    <div class="ready-banner" id="readyBanner" style="display:none;">
-      ✓ Ya puedes cambiar de alineador · <u style="cursor:pointer" id="bannerOpenAlarm">Ver opciones</u>
+    <div class="ready-banner" id="readyBanner" style="display:none;cursor:pointer;">
+      ✓ Ya puedes cambiar de alineador · <u style="cursor:pointer">Ver opciones</u>
     </div>
 
     <div class="timer-panel" id="timerPanel" style="display:none;">
@@ -325,11 +327,14 @@
     <h3 style="margin-bottom:6px;">Ya puedes pasar al siguiente alineador</h3>
     <p style="color:var(--text-dim);font-size:.85rem;margin:0 0 18px;">Recuerda hacerte selfies para ver tu progreso</p>
     <button class="btn btn-ok" id="ferulaReadyCambioYaBtn" style="width:100%;margin-bottom:10px;padding:13px;">Cambio ya</button>
-    <div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:4px;">
-      <button class="btn btn-secondary" id="ferulaReadyLaterBtn" style="flex:1;padding:11px;">Cambio en</button>
-      <input type="number" id="ferulaReadyDelayInput" value="30" min="1" max="999"
-        style="width:64px;background:#0003;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:10px 6px;font-family:inherit;font-size:.95rem;text-align:center;">
-      <span style="color:var(--text-dim);font-size:.9rem;">min</span>
+    <div style="display:flex;align-items:center;gap:6px;justify-content:center;margin-bottom:4px;flex-wrap:wrap;">
+      <button class="btn btn-secondary" id="ferulaReadyLaterBtn" style="flex:1;padding:11px;min-width:110px;">Cambio en</button>
+      <input type="number" id="ferulaReadyDelayHours" value="0" min="0" max="99"
+        style="width:48px;background:#0003;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:10px 4px;font-family:inherit;font-size:.95rem;text-align:center;">
+      <span style="color:var(--text-dim);font-size:.85rem;">h</span>
+      <input type="number" id="ferulaReadyDelayMinutes" value="30" min="0" max="59"
+        style="width:48px;background:#0003;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:10px 4px;font-family:inherit;font-size:.95rem;text-align:center;">
+      <span style="color:var(--text-dim);font-size:.85rem;">min</span>
     </div>
   </div>
 </div>
@@ -514,6 +519,7 @@
         <span class="stxt">🚩 Objetivo diario</span>
         <div style="display:flex;align-items:center;gap:6px;">
           <select id="objetivoInput" class="select-dark">
+            <option value="1">1</option>
             <option value="20">20</option>
             <option value="21">21</option>
             <option value="22" selected>22</option>
@@ -587,6 +593,7 @@ const defaultState = {
 
   status: 'con',                 // 'con' | 'sin'
   statusSince: Date.now(),
+  ferulaStartTs: Date.now(),     // cuándo empezó la férula ACTUAL (para la cuenta atrás, no se resetea a medianoche)
   priorDaysConMs: 0,             // total CON acumulado en días ANTERIORES de esta férula (se cierra cada medianoche)
   priorDaysSinMs: 0,             // total SIN acumulado en días anteriores
 
@@ -611,6 +618,7 @@ if(!Array.isArray(state.todaySegments)) state.todaySegments = [];
 if(state.priorDaysConMs === undefined) state.priorDaysConMs = state.accumConMs || 0;
 if(state.priorDaysSinMs === undefined) state.priorDaysSinMs = state.accumSinMs || 0;
 if(state.ferulaAlarmFired === undefined) state.ferulaAlarmFired = false;
+if(state.ferulaStartTs === undefined) state.ferulaStartTs = state.statusSince || Date.now();
 if(state.cambioDelay === undefined) state.cambioDelay = 30;
 if(state.treatmentEnabled === undefined) state.treatmentEnabled = true;
 if(state.todayDate === undefined) state.todayDate = null;
@@ -726,8 +734,20 @@ function todayLiveSinMs(){
   if(state.status==='sin') v += Math.max(0, Date.now()-Math.max(state.statusSince, startOfToday()));
   return v;
 }
-// total de la férula actual = días anteriores cerrados + lo que llevamos hoy
-function liveConMs(){ rolloverIfNeeded(); return state.priorDaysConMs + todayLiveConMs(); }
+// CON de HOY pero solo lo acumulado desde que empezó la férula ACTUAL (no desde las 00:00).
+// Se usa solo para la cuenta atrás de cambio de férula, para no arrastrar el CON de la
+// férula anterior si el cambio ocurrió hoy mismo.
+function todayFerulaConMs(){
+  rolloverIfNeeded();
+  const cutoff = Math.max(state.ferulaStartTs || 0, startOfToday());
+  let v = state.todaySegments
+    .filter(s=>s.status==='con' && s.end>cutoff)
+    .reduce((a,s)=>a+(s.end - Math.max(s.start, cutoff)), 0);
+  if(state.status==='con') v += Math.max(0, Date.now()-Math.max(state.statusSince, cutoff));
+  return v;
+}
+// total de la férula actual = días anteriores cerrados + lo que llevamos hoy CON ESTA férula
+function liveConMs(){ rolloverIfNeeded(); return state.priorDaysConMs + todayFerulaConMs(); }
 function liveSinMs(){ rolloverIfNeeded(); return state.priorDaysSinMs + todayLiveSinMs(); }
 
 /* ===================== RENDER ===================== */
@@ -991,7 +1011,7 @@ function renderTimeline(){
   const segs = getTodayTimeline();
   const list = el('timelineList');
   list.innerHTML = '';
-  segs.forEach(seg=>{
+  segs.filter(seg=>(seg.end-seg.start)>=60000).forEach(seg=>{
     const row = document.createElement('div');
     row.className = 'timeline-row ' + seg.status + (seg.live?' live':'');
     const rangeTxt = seg.live ? `${fmtClock(seg.start)} ~ ahora` : `${fmtClock(seg.start)} ~ ${fmtClock(seg.end)}`;
@@ -1127,10 +1147,16 @@ el('daysBInput').addEventListener('change', ()=>{
   state.daysB = parseInt(el('daysBInput').value,10)||1; save(); render();
 });
 function applyFerulaChange(num, letra){
+  rolloverIfNeeded();
+  // cerrar el tramo en curso en el timeline de HOY antes de cambiar la etiqueta,
+  // igual que en el cambio automático, para no perder CON/SIN ya registrados hoy
+  commitCurrentSegment();
   state.ferulaActual = formatFerula(num, letra);
+  // reiniciar solo el contador de cuenta atrás de la NUEVA férula (priorDays + su propio arranque).
+  // state.todaySegments NO se toca: el día sigue repartiéndose entre CON(férula anterior) + CON(actual) + SIN.
   state.priorDaysConMs = 0; state.priorDaysSinMs = 0;
-  state.todaySegments = [];
   state.statusSince = Date.now();
+  state.ferulaStartTs = state.statusSince;
   state.ferulaAlarmFired = false;
   save(); render();
 }
@@ -1175,12 +1201,27 @@ el('postTime2').addEventListener('change', ()=>{
 
 /* ===================== ALARMA: cambio de FÉRULA ===================== */
 let ferulaAlarmRepeat = null;
+function fmtDelayHM(mins){
+  const h = Math.floor(mins/60), m = mins%60;
+  if(h>0 && m>0) return `${h} h ${m} min`;
+  if(h>0) return `${h} h`;
+  return `${m} min`;
+}
 function openFerulaReadyAlarm(){
-  el('ferulaReadyDelayInput').value = state.cambioDelay || 30;
+  const savedMins = state.cambioDelay || 30;
+  el('ferulaReadyDelayHours').value = Math.floor(savedMins/60);
+  el('ferulaReadyDelayMinutes').value = savedMins%60;
   el('ferulaReadyOverlay').classList.add('show');
-  playCelebrationSound();
   clearInterval(ferulaAlarmRepeat);
-  ferulaAlarmRepeat = setInterval(()=>{ if(el('ferulaReadyOverlay').classList.contains('show')) playCelebrationSound(); }, 14000);
+  let ferulaAlarmPlays = 0;
+  const playFerulaAlarmOnce = ()=>{
+    if(!el('ferulaReadyOverlay').classList.contains('show')){ clearInterval(ferulaAlarmRepeat); return; }
+    playCelebrationSound();
+    ferulaAlarmPlays++;
+    if(ferulaAlarmPlays>=4){ clearInterval(ferulaAlarmRepeat); ferulaAlarmRepeat=null; }
+  };
+  playFerulaAlarmOnce(); // sonido 1 de 4, inmediato
+  ferulaAlarmRepeat = setInterval(playFerulaAlarmOnce, 5000); // sonidos 2, 3 y 4, luego se detiene solo
   if('Notification' in window && Notification.permission==='granted'){
     try{ new Notification('🦷 Cambia de alineador', {body:'Ya puedes pasar al siguiente. ¡Hazte un selfie!', tag:'alitrack-ferula'}); }catch(e){}
   }
@@ -1190,7 +1231,7 @@ function closeFerulaReadyAlarm(){
   el('ferulaReadyOverlay').classList.remove('show');
 }
 
-el('bannerOpenAlarm').addEventListener('click', (e)=>{ e.stopPropagation(); openFerulaReadyAlarm(); });
+el('readyBanner').addEventListener('click', (e)=>{ e.stopPropagation(); openFerulaReadyAlarm(); });
 
 // "Cambio ya" → pedir confirmación
 el('ferulaReadyCambioYaBtn').addEventListener('click', ()=>{
@@ -1198,16 +1239,18 @@ el('ferulaReadyCambioYaBtn').addEventListener('click', ()=>{
   el('ferulaConfirmOverlay').classList.add('show');
 });
 
-// "Cambio en XX min" → cerrar alarma, programar temporizador, abrir de nuevo al llegar
+// "Cambio en XX h YY min" → cerrar alarma, programar temporizador, abrir de nuevo al llegar
 let ferulaDelayTimer = null;
 el('ferulaReadyLaterBtn').addEventListener('click', ()=>{
-  const mins = parseInt(el('ferulaReadyDelayInput').value,10)||30;
+  const h = parseInt(el('ferulaReadyDelayHours').value,10)||0;
+  const m = parseInt(el('ferulaReadyDelayMinutes').value,10)||0;
+  const mins = Math.max(1, h*60 + m);
   state.cambioDelay = mins;
   save();
   closeFerulaReadyAlarm();
   clearTimeout(ferulaDelayTimer);
   ferulaDelayTimer = setTimeout(()=>{ openFerulaReadyAlarm(); }, mins*60000);
-  toast(`Aviso en ${mins} min`);
+  toast(`Aviso en ${fmtDelayHM(mins)}`);
 });
 
 // Confirmación Sí → avanzar férula automáticamente
@@ -1222,7 +1265,7 @@ el('ferulaConfirmNoBtn').addEventListener('click', ()=>{
   const mins = state.cambioDelay || 30;
   clearTimeout(ferulaDelayTimer);
   ferulaDelayTimer = setTimeout(()=>{ openFerulaReadyAlarm(); }, mins*60000);
-  toast(`Aviso en ${mins} min`);
+  toast(`Aviso en ${fmtDelayHM(mins)}`);
 });
 
 function advanceFerula(){
@@ -1246,6 +1289,7 @@ function advanceFerula(){
   // alineador anterior CON, alineador actual CON y SIN, hasta las 00:00.
   state.priorDaysConMs = 0; state.priorDaysSinMs = 0;
   state.statusSince = Date.now();
+  state.ferulaStartTs = state.statusSince;
   state.ferulaAlarmFired = false;
   clearTimeout(ferulaDelayTimer);
   save(); render();
