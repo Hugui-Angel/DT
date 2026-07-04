@@ -65,22 +65,26 @@
 
   /* ---------- header info row ---------- */
   .header-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px;}
-  .ferula-block .label{color:var(--text-dim);font-size:.7rem;letter-spacing:.08em;font-weight:600;text-transform:uppercase;}
+  .ferula-block,.revision-block{
+    background:var(--con-soft);border:1px solid var(--con-glow);border-radius:var(--radius-sm);
+    padding:10px 14px;flex:1;display:flex;flex-direction:column;justify-content:space-between;
+  }
+  .ferula-block .label{color:#a9d3fbb0;font-size:.7rem;letter-spacing:.08em;font-weight:600;text-transform:uppercase;}
   .ferula-id{
-    font-size:2rem;font-weight:700;letter-spacing:.02em;cursor:pointer;
+    font-size:2rem;font-weight:700;letter-spacing:.02em;cursor:pointer;color:var(--text);
     display:inline-block;padding-bottom:2px;margin-top:4px;
   }
-  .ferula-sub{color:var(--text-dim);font-size:.85rem;margin-top:8px;line-height:1.4;}
-  .ferula-sub b{color:var(--text);font-size:1.05rem;font-weight:700;}
+  .ferula-sub{color:#a9d3fbb0;font-size:.85rem;margin-top:8px;line-height:1.4;}
+  .ferula-sub b{color:#a9d3fb;font-size:1.05rem;font-weight:700;}
 
   .revision-block{text-align:right;}
-  .revision-block .label{color:var(--text-dim);font-size:.7rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;}
+  .revision-block .label{color:#a9d3fbb0;font-size:.7rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;}
   .revision-date{
-    font-size:.95rem;cursor:pointer;font-weight:600;
+    font-size:.95rem;cursor:pointer;font-weight:600;color:var(--text);
     display:inline-block;padding-bottom:2px;margin-top:6px;line-height:1.4;
   }
-  .revision-count{font-size:.85rem;color:var(--text-dim);margin-top:8px;}
-  .revision-count b{color:var(--text);font-size:.95rem;font-weight:700;}
+  .revision-count{font-size:.85rem;color:#a9d3fbb0;margin-top:8px;}
+  .revision-count b{color:#a9d3fb;font-size:.95rem;font-weight:700;}
 
   /* ---------- main status card ---------- */
   .status-card{
@@ -229,6 +233,12 @@
   .timeline-row.sin .tl-status{color:var(--sin);}
   .timeline-row .tl-range{font-size:.85rem;color:var(--text);margin-top:2px;}
   .timeline-row .tl-dur{font-size:.85rem;font-weight:700;color:var(--text);white-space:nowrap;}
+  .tl-marker{
+    text-align:center;font-size:.8rem;color:#a9d3fb;background:var(--con-soft);
+    border:1px dashed var(--con-glow);border-radius:var(--radius-sm);
+    padding:7px 10px;margin:4px 0 10px;
+  }
+  .tl-marker b{font-weight:700;}
   .timeline-row.live{opacity:.92;}
   .help-text{font-size:.72rem;color:var(--text-dim);margin-top:-6px;margin-bottom:10px;line-height:1.5;}
 
@@ -273,7 +283,7 @@
     <div class="revision-block">
       <div class="label">PRÓXIMA REVISIÓN</div>
       <div class="revision-date" id="revisionDateDisplay">—</div>
-      <div class="revision-count">en <b id="revisionCountdown">—</b></div>
+      <div class="revision-count">Faltan:<br><b id="revisionCountdown">—</b></div>
     </div>
   </div>
 
@@ -605,6 +615,7 @@ const defaultState = {
 
   todayDate: null,               // 'YYYY-MM-DD' del día actual
   todaySegments: [],             // tramos CERRADOS de hoy: [{status:'con'|'sin', start:ts, end:ts}, ...]
+  todayFerulaEvents: [],         // cambios de férula ocurridos HOY: [{ts, label}, ...] (para marcar el timeline en Editar)
 
   sinTimerEnd: null,             // timestamp objetivo del temporizador SIN
   ferulaAlarmFired: false,       // true si ya se disparó el aviso de cambio de férula hoy
@@ -621,6 +632,7 @@ const defaultState = {
 let state = storage.get('alitrack_state', null) || JSON.parse(JSON.stringify(defaultState));
 // Migración: asegurar que campos añadidos en versiones posteriores existen
 if(!Array.isArray(state.todaySegments)) state.todaySegments = [];
+if(!Array.isArray(state.todayFerulaEvents)) state.todayFerulaEvents = [];
 if(state.priorDaysConMs === undefined) state.priorDaysConMs = state.accumConMs || 0;
 if(state.priorDaysSinMs === undefined) state.priorDaysSinMs = state.accumSinMs || 0;
 if(state.ferulaAlarmFired === undefined) state.ferulaAlarmFired = false;
@@ -720,6 +732,7 @@ function rolloverIfNeeded(){
       if(s.status==='con') state.priorDaysConMs += dur; else state.priorDaysSinMs += dur;
     });
     state.todaySegments = [];
+    state.todayFerulaEvents = [];
     state.todayDate = nextDateKey(state.todayDate);
   }
   save();
@@ -1017,7 +1030,18 @@ function renderTimeline(){
   const segs = getTodayTimeline();
   const list = el('timelineList');
   list.innerHTML = '';
-  segs.filter(seg=>(seg.end-seg.start)>=60000).forEach(seg=>{
+  const segEntries = segs.filter(seg=>(seg.end-seg.start)>=60000).map(seg=>({type:'seg', ts:seg.start, seg}));
+  const eventEntries = (state.todayFerulaEvents||[]).map(ev=>({type:'event', ts:ev.ts, label:ev.label}));
+  const combined = [...segEntries, ...eventEntries].sort((a,b)=> a.ts-b.ts || (a.type==='event' ? -1 : 1));
+  combined.forEach(entry=>{
+    if(entry.type==='event'){
+      const marker = document.createElement('div');
+      marker.className = 'tl-marker';
+      marker.innerHTML = `🦷 Cambio de férula → <b>${entry.label}</b> · ${fmtClock(entry.ts)}`;
+      list.appendChild(marker);
+      return;
+    }
+    const seg = entry.seg;
     const row = document.createElement('div');
     row.className = 'timeline-row ' + seg.status + (seg.live?' live':'');
     const rangeTxt = seg.live ? `${fmtClock(seg.start)} ~ ahora` : `${fmtClock(seg.start)} ~ ${fmtClock(seg.end)}`;
@@ -1164,6 +1188,7 @@ function applyFerulaChange(num, letra){
   state.statusSince = Date.now();
   state.ferulaStartTs = state.statusSince;
   state.ferulaAlarmFired = false;
+  state.todayFerulaEvents.push({ts: state.ferulaStartTs, label: state.ferulaActual});
   save(); render();
 }
 el('ferulaNumSelect').addEventListener('change', ()=>{
@@ -1297,6 +1322,7 @@ function advanceFerula(){
   state.statusSince = Date.now();
   state.ferulaStartTs = state.statusSince;
   state.ferulaAlarmFired = false;
+  state.todayFerulaEvents.push({ts: state.ferulaStartTs, label: state.ferulaActual});
   clearTimeout(ferulaDelayTimer);
   save(); render();
   toast(`Cambiado a ${state.ferulaActual}`);
