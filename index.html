@@ -650,6 +650,7 @@ if(state.cambioDelay === undefined) state.cambioDelay = 30;
 if(state.treatmentEnabled === undefined) state.treatmentEnabled = true;
 if(state.todayDate === undefined) state.todayDate = null;
 if(state.proximaRevisionHora === undefined) state.proximaRevisionHora = '10:00';
+if(![20,21,22,23].includes(Number(state.objetivoHoras))) state.objetivoHoras = 22;
 save();
 function save(){ storage.set('alitrack_state', state); }
 
@@ -721,7 +722,10 @@ function startOfDayTs(key){
 function startOfToday(){ return startOfDayTs(dateKeyOf(Date.now())); }
 
 /* Cierra días pasados volcando su tiempo en priorDaysConMs/SinMs, y vacía los tramos de hoy
-   al cruzar cada medianoche. Soporta varios días saltados si la app estuvo cerrada. */
+   al cruzar cada medianoche. Soporta varios días saltados si la app estuvo cerrada.
+   IMPORTANTE: si hubo un cambio de férula ese día, el CON de ANTES del cambio (férula anterior)
+   no debe sumarse a priorDaysConMs (que es el contador de la férula ACTUAL) — si no, al llegar
+   la medianoche se "cuela" ese tiempo extra y puede disparar el aviso de cambio sin motivo real. */
 function rolloverIfNeeded(){
   if(state.todayDate === null){ state.todayDate = dateKeyOf(Date.now()); save(); return; }
   let safety = 0;
@@ -729,16 +733,27 @@ function rolloverIfNeeded(){
     safety++;
     const oldDayStart = startOfDayTs(state.todayDate);
     const oldDayEnd = oldDayStart + 86400000;
+    const ferulaCutoff = Math.max(state.ferulaStartTs || 0, oldDayStart); // el CON solo cuenta desde aquí
     // parte del tramo en curso (status actual) que cae dentro del día que se cierra
     const segStart = Math.max(state.statusSince, oldDayStart);
     if(segStart < oldDayEnd){
-      const part = oldDayEnd - segStart;
-      if(state.status==='con') state.priorDaysConMs += part; else state.priorDaysSinMs += part;
+      if(state.status==='con'){
+        const conFrom = Math.max(segStart, ferulaCutoff);
+        if(conFrom < oldDayEnd) state.priorDaysConMs += (oldDayEnd - conFrom);
+      } else {
+        state.priorDaysSinMs += (oldDayEnd - segStart);
+      }
     }
     // tramos ya cerrados de ese día
     state.todaySegments.forEach(s=>{
-      const dur = Math.max(0, s.end - s.start);
-      if(s.status==='con') state.priorDaysConMs += dur; else state.priorDaysSinMs += dur;
+      const start = Math.max(s.start, oldDayStart), end = Math.min(s.end, oldDayEnd);
+      if(end<=start) return;
+      if(s.status==='con'){
+        const conFrom = Math.max(start, ferulaCutoff);
+        if(conFrom < end) state.priorDaysConMs += (end - conFrom);
+      } else {
+        state.priorDaysSinMs += (end - start);
+      }
     });
     state.todaySegments = [];
     state.todayFerulaEvents = [];
