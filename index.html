@@ -70,9 +70,12 @@
     padding:10px 14px;flex:1;display:flex;flex-direction:column;justify-content:space-between;
   }
   .ferula-block .label{color:#a9d3fbb0;font-size:.7rem;letter-spacing:.08em;font-weight:600;text-transform:uppercase;}
+  .editable-row{display:flex;align-items:center;min-height:36px;margin-top:4px;cursor:pointer;gap:6px;}
+  .ferula-block .editable-row{justify-content:flex-start;}
+  .revision-block .editable-row{justify-content:flex-end;}
+  .edit-pencil{font-size:1rem;color:#a9d3fb;line-height:1;}
   .ferula-id{
-    font-size:2rem;font-weight:700;letter-spacing:.02em;cursor:pointer;color:var(--text);
-    display:inline-block;padding-bottom:2px;margin-top:4px;
+    font-size:2rem;font-weight:700;letter-spacing:.02em;color:var(--text);
   }
   .ferula-sub{color:#a9d3fbb0;font-size:.85rem;margin-top:8px;line-height:1.4;}
   .ferula-sub b{color:#a9d3fb;font-size:1.05rem;font-weight:700;}
@@ -80,8 +83,7 @@
   .revision-block{text-align:right;}
   .revision-block .label{color:#a9d3fbb0;font-size:.7rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;}
   .revision-date{
-    font-size:.95rem;cursor:pointer;font-weight:600;color:var(--text);
-    display:inline-block;padding-bottom:2px;margin-top:6px;line-height:1.4;
+    font-size:.95rem;font-weight:600;color:var(--text);line-height:1.4;
   }
   .revision-count{font-size:.85rem;color:#a9d3fbb0;margin-top:8px;}
   .revision-count b{color:#a9d3fb;font-size:.95rem;font-weight:700;}
@@ -277,12 +279,18 @@
   <div class="header-row" id="headerRow">
     <div class="ferula-block">
       <div class="label">FÉRULA ACTUAL</div>
-      <div class="ferula-id" id="ferulaIdDisplay">33-A</div>
+      <div class="editable-row" id="ferulaEditRow">
+        <span class="ferula-id" id="ferulaIdDisplay">33-A</span>
+        <span class="edit-pencil">✎</span>
+      </div>
       <div class="ferula-sub">Faltan:<br><b id="cambioCountdown">—</b></div>
     </div>
     <div class="revision-block">
       <div class="label">PRÓXIMA REVISIÓN</div>
-      <div class="revision-date" id="revisionDateDisplay">—</div>
+      <div class="editable-row" id="revisionEditRow">
+        <span class="edit-pencil">✎</span>
+        <span class="revision-date" id="revisionDateDisplay">—</span>
+      </div>
       <div class="revision-count">Faltan:<br><b id="revisionCountdown">—</b></div>
     </div>
   </div>
@@ -666,9 +674,9 @@ function fmtDaysAtTarget(remainingWearMs){
   if(remainingWearMs<=0) return 'Listo';
   const totalMin = Math.round(remainingWearMs/60000);
   const h = Math.floor(totalMin/60), m = totalMin%60;
-  if(h>=48) return `${Math.floor(h/24)}d ${h%24}h de uso`;
-  if(h>=1)  return `${h}h ${m}m de uso`;
-  return `${m}m de uso`;
+  if(h>=48) return `${Math.floor(h/24)}d ${h%24}h`;
+  if(h>=1)  return `${h}h ${m}m`;
+  return `${m}m`;
 }
 function currentLetter(){
   return (state.ferulaActual.split('-')[1]||'A').toUpperCase();
@@ -1129,7 +1137,7 @@ el('segSaveBtn').addEventListener('click', ()=>{
 });
 
 /* ===================== EDITAR férula (desde pantalla principal) ===================== */
-el('ferulaIdDisplay').addEventListener('click', ()=>{
+el('ferulaEditRow').addEventListener('click', ()=>{
   el('ferulaInputNum').value = currentNumber();
   el('ferulaInputLetra').value = currentLetter();
   el('ferulaInputLetra').style.display = state.alternancia==='iguales' ? 'none':'block';
@@ -1142,7 +1150,7 @@ el('ferulaSaveBtn').addEventListener('click', ()=>{
 });
 
 /* ===================== EDITAR revisión ===================== */
-el('revisionDateDisplay').addEventListener('click', ()=>{
+el('revisionEditRow').addEventListener('click', ()=>{
   el('revisionInput').value = state.proximaRevision || '';
   el('revisionTimeInput').value = state.proximaRevisionHora || '10:00';
   el('revisionModalOverlay').classList.add('show');
