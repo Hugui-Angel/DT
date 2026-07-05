@@ -494,9 +494,19 @@
 </div>
 
 <!-- ===== Modal: editar fecha revisión ===== -->
+<div class="overlay" id="revisionTomorrowOverlay">
+  <div class="modal" style="text-align:center;">
+    <h3>📅 Mañana tienes revisión</h3>
+    <div class="modal-actions">
+      <button class="btn btn-ok" id="revisionTomorrowOkBtn" style="width:100%;">Aceptar</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="revisionModalOverlay">
   <div class="modal">
     <h3>Próxima revisión</h3>
+    <p id="revisionModalMsg" style="display:none;color:var(--text-dim);font-size:.85rem;margin:-8px 0 12px;">¿Cuándo es la próxima revisión?</p>
     <div class="field">
       <label>Fecha</label>
       <input type="date" id="revisionInput">
@@ -633,6 +643,8 @@ const defaultState = {
   objetivoHoras: 22,
   treatmentEnabled: true,
   proximaRevision: null,         // ISO date string
+  revisionTomorrowShownFor: null, // valor de proximaRevision para el que YA se mostró "Mañana tienes revisión"
+  revisionAskLastShown: null,     // ts de la última vez que se preguntó "¿Cuándo es la próxima revisión?"
   notas: '',                     // anotaciones libres del paciente (dolores, llagas...)
   proximaRevisionHora: '10:00',
 
@@ -662,6 +674,8 @@ let state = storage.get('alitrack_state', null) || JSON.parse(JSON.stringify(def
 // Migración: asegurar que campos añadidos en versiones posteriores existen
 if(!Array.isArray(state.todaySegments)) state.todaySegments = [];
 if(!Array.isArray(state.todayFerulaEvents)) state.todayFerulaEvents = [];
+if(state.revisionTomorrowShownFor === undefined) state.revisionTomorrowShownFor = null;
+if(state.revisionAskLastShown === undefined) state.revisionAskLastShown = null;
 if(typeof state.notas !== 'string') state.notas = '';
 if(state.priorDaysConMs === undefined) state.priorDaysConMs = state.accumConMs || 0;
 if(state.priorDaysSinMs === undefined) state.priorDaysSinMs = state.accumSinMs || 0;
@@ -1205,14 +1219,29 @@ el('ferulaSaveBtn').addEventListener('click', ()=>{
 el('revisionEditRow').addEventListener('click', ()=>{
   el('revisionInput').value = state.proximaRevision || '';
   el('revisionTimeInput').value = state.proximaRevisionHora || '10:00';
+  el('revisionModalMsg').style.display = 'none';
   el('revisionModalOverlay').classList.add('show');
 });
 el('revisionCancelBtn').addEventListener('click', ()=>el('revisionModalOverlay').classList.remove('show'));
 el('revisionSaveBtn').addEventListener('click', ()=>{
   state.proximaRevision = el('revisionInput').value || null;
   state.proximaRevisionHora = el('revisionTimeInput').value || '10:00';
+  // nueva fecha → reiniciar el ciclo de avisos de revisión
+  state.revisionTomorrowShownFor = null;
+  state.revisionAskLastShown = null;
   el('revisionModalOverlay').classList.remove('show');
   save(); render();
+});
+
+function openRevisionAskModal(){
+  el('revisionInput').value = '';
+  el('revisionTimeInput').value = state.proximaRevisionHora || '10:00';
+  el('revisionModalMsg').style.display = 'block';
+  el('revisionModalOverlay').classList.add('show');
+}
+
+el('revisionTomorrowOkBtn').addEventListener('click', ()=>{
+  el('revisionTomorrowOverlay').classList.remove('show');
 });
 
 /* ===================== MENÚ LATERAL ===================== */
@@ -1477,7 +1506,58 @@ function playOptimisticSound(){
   });
 }
 
-/* --- comprobador de alarmas post tratamiento (cada 30 s) --- */
+function playDoubleBeepSound(){
+  if(!audioCtx){ try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; } }
+  if(audioCtx.state==='suspended') audioCtx.resume();
+  // Doble bip neutro, para los avisos de revisión (distinto del resto de sonidos)
+  let t = audioCtx.currentTime;
+  for(let i=0;i<2;i++){
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type='square'; osc.frequency.value=988;
+    gain.gain.setValueAtTime(0,t);
+    gain.gain.linearRampToValueAtTime(0.15,t+0.01);
+    gain.gain.linearRampToValueAtTime(0,t+0.13);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t+0.14);
+    t += 0.24;
+  }
+}
+
+/* --- comprobador de avisos de revisión (cada 30 s, solo durante tratamiento activo) --- */
+function combineRevisionDateTime(){
+  if(!state.proximaRevision) return null;
+  return new Date(`${state.proximaRevision}T${state.proximaRevisionHora||'10:00'}:00`).getTime();
+}
+function checkRevisionAlarms(){
+  if(!state.treatmentEnabled) return; // de momento solo durante el tratamiento activo
+  const revTs = combineRevisionDateTime();
+  if(!revTs) return;
+  const now = Date.now();
+
+  // "Mañana tienes revisión": desde 24h antes y hasta el momento de la revisión, una vez por revisión
+  if(now >= revTs-86400000 && now < revTs && state.revisionTomorrowShownFor !== state.proximaRevision){
+    state.revisionTomorrowShownFor = state.proximaRevision;
+    save();
+    playDoubleBeepSound();
+    el('revisionTomorrowOverlay').classList.add('show');
+    if('Notification' in window && Notification.permission==='granted'){
+      try{ new Notification('📅 Revisión mañana', {body:'Mañana tienes revisión', tag:'alitrack-rev-tomorrow'}); }catch(e){}
+    }
+  }
+
+  // "¿Cuándo es la próxima revisión?": 3h después de la revisión, y luego 1 vez al día mientras no haya fecha nueva
+  if(now >= revTs+3*3600000 && (state.revisionAskLastShown===null || now-state.revisionAskLastShown>=86400000)){
+    state.revisionAskLastShown = now;
+    save();
+    playDoubleBeepSound();
+    openRevisionAskModal();
+    if('Notification' in window && Notification.permission==='granted'){
+      try{ new Notification('📅 Próxima revisión', {body:'¿Cuándo es tu próxima revisión?', tag:'alitrack-rev-ask'}); }catch(e){}
+    }
+  }
+}
+setInterval(checkRevisionAlarms, 30000);
 const lastFiredPost = {t1: null, t2: null};
 function checkPostAlarms(){
   if(!state.postEnabled) return;
