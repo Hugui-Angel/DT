@@ -67,7 +67,7 @@
   .header-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px;}
   .ferula-block,.revision-block{
     background:var(--con-soft);border:1px solid var(--con-glow);border-radius:var(--radius-sm);
-    padding:16px 14px;flex:1;display:flex;flex-direction:column;justify-content:space-between;
+    padding:10px 14px 22px;flex:1;display:flex;flex-direction:column;justify-content:space-between;
     height:128px;box-sizing:border-box;
   }
   .ferula-block .label{color:#a9d3fbb0;font-size:.7rem;letter-spacing:.08em;font-weight:600;text-transform:uppercase;}
@@ -100,7 +100,7 @@
     transition:border-color .25s, background .25s;
     user-select:none;
   }
-  .status-card.sin{border-color:var(--sin-glow);background:var(--sin-soft);}
+  .status-card.sin{border-color:var(--sin-glow);background:var(--sin-soft);animation:pulse 1.6s infinite;}
   .status-title{
     text-align:center;font-weight:700;letter-spacing:.1em;font-size:1.05rem;
     background:#ffffff0d;border-radius:var(--radius-sm);padding:11px 0;margin-bottom:18px;
@@ -296,6 +296,10 @@
     </div>
   </div>
 
+  <button class="btn btn-secondary" id="notasBtn" style="width:100%;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--con-soft);color:#a9d3fb;border:1px solid var(--con-glow);">
+    <span style="font-size:1.1rem;">📝</span> Notas
+  </button>
+
   <div id="treatmentMain">
   <div class="status-card" id="statusCard">
     <div class="status-title" id="statusTitle">CON ALINEADORES</div>
@@ -382,6 +386,21 @@
     <div class="modal-actions">
       <button class="btn btn-secondary" id="undoConfirmNoBtn">No, estaba ok</button>
       <button class="btn btn-danger" id="undoConfirmYesBtn">Sí, deshacer</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="notasOverlay">
+  <div class="modal">
+    <h3>📝 Notas</h3>
+    <p style="color:var(--text-dim);font-size:.85rem;margin:0 0 12px;">Dolores, llagas u otras anotaciones</p>
+    <textarea id="notasInput" rows="6" placeholder="Escribe aquí..."
+      style="width:100%;background:#0003;border:1px solid var(--line-strong);color:var(--text);
+      border-radius:var(--radius-sm);padding:10px 12px;font-family:inherit;font-size:.95rem;
+      resize:vertical;box-sizing:border-box;margin-bottom:16px;"></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="notasCancelBtn">Cancelar</button>
+      <button class="btn btn-ok" id="notasSaveBtn">Guardar</button>
     </div>
   </div>
 </div>
@@ -614,6 +633,7 @@ const defaultState = {
   objetivoHoras: 22,
   treatmentEnabled: true,
   proximaRevision: null,         // ISO date string
+  notas: '',                     // anotaciones libres del paciente (dolores, llagas...)
   proximaRevisionHora: '10:00',
 
   status: 'con',                 // 'con' | 'sin'
@@ -642,6 +662,7 @@ let state = storage.get('alitrack_state', null) || JSON.parse(JSON.stringify(def
 // Migración: asegurar que campos añadidos en versiones posteriores existen
 if(!Array.isArray(state.todaySegments)) state.todaySegments = [];
 if(!Array.isArray(state.todayFerulaEvents)) state.todayFerulaEvents = [];
+if(typeof state.notas !== 'string') state.notas = '';
 if(state.priorDaysConMs === undefined) state.priorDaysConMs = state.accumConMs || 0;
 if(state.priorDaysSinMs === undefined) state.priorDaysSinMs = state.accumSinMs || 0;
 if(state.ferulaAlarmFired === undefined) state.ferulaAlarmFired = false;
@@ -1026,6 +1047,21 @@ el('undoConfirmYesBtn').addEventListener('click', ()=>{
   toast('Cambio deshecho');
 });
 
+/* ===================== NOTAS ===================== */
+el('notasBtn').addEventListener('click', ()=>{
+  el('notasInput').value = state.notas || '';
+  el('notasOverlay').classList.add('show');
+});
+el('notasCancelBtn').addEventListener('click', ()=>{
+  el('notasOverlay').classList.remove('show');
+});
+el('notasSaveBtn').addEventListener('click', ()=>{
+  state.notas = el('notasInput').value;
+  save();
+  el('notasOverlay').classList.remove('show');
+  toast('Nota guardada');
+});
+
 /* ===================== EDITAR tiempos: TIMELINE de tramos de hoy ===================== */
 function fmtClock(ts){
   const d = new Date(ts);
@@ -1081,7 +1117,7 @@ function renderTimeline(){
   });
   const totalCon = segs.filter(s=>s.status==='con').reduce((a,s)=>a+(s.end-s.start),0);
   const totalSin = segs.filter(s=>s.status==='sin').reduce((a,s)=>a+(s.end-s.start),0);
-  el('timelineTotals').textContent = `Hoy en total — CON: ${fmtDur(totalCon)} · SIN: ${fmtDur(totalSin)}`;
+  el('timelineTotals').innerHTML = `Hoy en total<br>CON: ${fmtDur(totalCon)}<br>SIN: ${fmtDur(totalSin)}`;
 }
 
 el('editBtn').addEventListener('click', ()=>{
