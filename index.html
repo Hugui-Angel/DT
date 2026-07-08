@@ -321,7 +321,7 @@
     </div>
 
     <div class="ready-banner" id="readyBanner" style="display:none;cursor:pointer;">
-      ✓ Ya puedes cambiar de alineador · <u style="cursor:pointer">Ver opciones</u>
+      ✓ Ya puedes cambiar de alineador
     </div>
 
     <div class="timer-panel" id="timerPanel" style="display:none;">
@@ -379,6 +379,17 @@
     </div>
   </div>
 </div>
+<div class="overlay" id="importConfirmOverlay">
+  <div class="modal" style="text-align:center;">
+    <h3>¿Importar datos?</h3>
+    <p style="color:var(--text-dim);font-size:.85rem;margin:0 0 18px;">Esto sustituirá por completo tus datos actuales. Esta acción no se puede deshacer.</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="importCancelBtn">Cancelar</button>
+      <button class="btn btn-ok" id="importConfirmBtn">Sí, importar</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="undoConfirmOverlay">
   <div class="modal" style="text-align:center;">
     <h3>¿Deshacer el último cambio?</h3>
@@ -494,6 +505,27 @@
 </div>
 
 <!-- ===== Modal: editar fecha revisión ===== -->
+<div class="overlay" id="ferulaManualConfirmOverlay">
+  <div class="modal" style="text-align:center;">
+    <h3>Aún faltan: <span id="ferulaManualRemainingTxt">—</span></h3>
+    <p style="color:var(--text-dim);font-size:.85rem;margin:0 0 18px;">¿Cambiamos de férula igualmente?</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="ferulaManualCancelBtn">Cancelar</button>
+      <button class="btn btn-ok" id="ferulaManualYesBtn">Sí</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="ferulaMotivationOverlay">
+  <div class="modal" style="text-align:center;">
+    <h3>💪 ¡Muy bien!</h3>
+    <p style="color:var(--text-dim);font-size:.9rem;margin:0 0 18px;">Has usado la férula <b id="ferulaMotivationTxt" style="color:#a9d3fb;">—</b> más respecto a tu objetivo</p>
+    <div class="modal-actions">
+      <button class="btn btn-ok" id="ferulaMotivationOkBtn" style="width:100%;">Aceptar</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="revisionTomorrowOverlay">
   <div class="modal" style="text-align:center;">
     <h3>📅 Mañana tienes revisión</h3>
@@ -613,6 +645,12 @@
     <button class="btn btn-secondary" id="enableNotifBtn" style="width:100%;margin-bottom:8px;">🔔 Activar avisos sonoros</button>
     <div class="help-text">Si cierras del todo el navegador, el aviso puede no sonar (limitación de los móviles). Para más fiabilidad, deja la app abierta en segundo plano o instálala como app (Añadir a pantalla de inicio).</div>
 
+    <div class="menu-divider"></div>
+    <button class="btn btn-secondary" id="exportBtn" style="width:100%;margin-bottom:8px;">⬆️ Exportar datos</button>
+    <button class="btn btn-secondary" id="importBtn" style="width:100%;">⬇️ Importar datos</button>
+    <input type="file" id="importFileInput" accept="application/json,.json" style="display:none;">
+    <div class="help-text">Exporta una copia de tus datos (férula, notas, configuración...) por si cambias de móvil. Es una foto del momento: no se actualiza sola, y al importar sustituye por completo los datos actuales.</div>
+
   </div>
 </div>
 
@@ -671,21 +709,25 @@ const defaultState = {
 };
 
 let state = storage.get('alitrack_state', null) || JSON.parse(JSON.stringify(defaultState));
-// Migración: asegurar que campos añadidos en versiones posteriores existen
-if(!Array.isArray(state.todaySegments)) state.todaySegments = [];
-if(!Array.isArray(state.todayFerulaEvents)) state.todayFerulaEvents = [];
-if(state.revisionTomorrowShownFor === undefined) state.revisionTomorrowShownFor = null;
-if(state.revisionAskLastShown === undefined) state.revisionAskLastShown = null;
-if(typeof state.notas !== 'string') state.notas = '';
-if(state.priorDaysConMs === undefined) state.priorDaysConMs = state.accumConMs || 0;
-if(state.priorDaysSinMs === undefined) state.priorDaysSinMs = state.accumSinMs || 0;
-if(state.ferulaAlarmFired === undefined) state.ferulaAlarmFired = false;
-if(state.ferulaStartTs === undefined) state.ferulaStartTs = state.statusSince || Date.now();
-if(state.cambioDelay === undefined) state.cambioDelay = 30;
-if(state.treatmentEnabled === undefined) state.treatmentEnabled = true;
-if(state.todayDate === undefined) state.todayDate = null;
-if(state.proximaRevisionHora === undefined) state.proximaRevisionHora = '10:00';
-if(![20,21,22,23].includes(Number(state.objetivoHoras))) state.objetivoHoras = 22;
+// Migración: asegurar que campos añadidos en versiones posteriores existen (se reutiliza también al importar un backup)
+function migrateState(s){
+  if(!Array.isArray(s.todaySegments)) s.todaySegments = [];
+  if(!Array.isArray(s.todayFerulaEvents)) s.todayFerulaEvents = [];
+  if(s.revisionTomorrowShownFor === undefined) s.revisionTomorrowShownFor = null;
+  if(s.revisionAskLastShown === undefined) s.revisionAskLastShown = null;
+  if(typeof s.notas !== 'string') s.notas = '';
+  if(s.priorDaysConMs === undefined) s.priorDaysConMs = s.accumConMs || 0;
+  if(s.priorDaysSinMs === undefined) s.priorDaysSinMs = s.accumSinMs || 0;
+  if(s.ferulaAlarmFired === undefined) s.ferulaAlarmFired = false;
+  if(s.ferulaStartTs === undefined) s.ferulaStartTs = s.statusSince || Date.now();
+  if(s.cambioDelay === undefined) s.cambioDelay = 30;
+  if(s.treatmentEnabled === undefined) s.treatmentEnabled = true;
+  if(s.todayDate === undefined) s.todayDate = null;
+  if(s.proximaRevisionHora === undefined) s.proximaRevisionHora = '10:00';
+  if(![20,21,22,23].includes(Number(s.objetivoHoras))) s.objetivoHoras = 22;
+  return s;
+}
+migrateState(state);
 save();
 function save(){ storage.set('alitrack_state', state); }
 
@@ -1104,7 +1146,7 @@ function renderTimeline(){
   const segs = getTodayTimeline();
   const list = el('timelineList');
   list.innerHTML = '';
-  const segEntries = segs.filter(seg=>(seg.end-seg.start)>=60000).map(seg=>({type:'seg', ts:seg.start, seg}));
+  const segEntries = segs.map(seg=>({type:'seg', ts:seg.start, seg}));
   const eventEntries = (state.todayFerulaEvents||[]).map(ev=>({type:'event', ts:ev.ts, label:ev.label}));
   const combined = [...segEntries, ...eventEntries].sort((a,b)=> a.ts-b.ts || (a.type==='event' ? -1 : 1));
   combined.forEach(entry=>{
@@ -1211,8 +1253,8 @@ el('ferulaEditRow').addEventListener('click', ()=>{
 });
 el('ferulaCancelBtn').addEventListener('click', ()=>el('ferulaModalOverlay').classList.remove('show'));
 el('ferulaSaveBtn').addEventListener('click', ()=>{
-  applyFerulaChange(el('ferulaInputNum').value, el('ferulaInputLetra').value);
   el('ferulaModalOverlay').classList.remove('show');
+  requestFerulaChange(el('ferulaInputNum').value, el('ferulaInputLetra').value);
 });
 
 /* ===================== EDITAR revisión ===================== */
@@ -1280,11 +1322,41 @@ function applyFerulaChange(num, letra){
   state.todayFerulaEvents.push({ts: state.ferulaStartTs, label: state.ferulaActual});
   save(); render();
 }
+
+// Intercepta cualquier cambio MANUAL de férula (menú lateral o bloque de arriba-izq):
+// si aún falta tiempo del objetivo, pide confirmación; si ya se superó, aplica el cambio
+// y felicita mostrando cuánto tiempo de más se ha llevado.
+let pendingFerulaChange = null;
+function requestFerulaChange(num, letra){
+  const remaining = targetMsForCurrent() - liveConMs();
+  if(remaining > 0){
+    pendingFerulaChange = {num, letra};
+    el('ferulaManualRemainingTxt').textContent = fmtDelayHM(Math.ceil(remaining/60000));
+    el('ferulaManualConfirmOverlay').classList.add('show');
+  } else {
+    const excessMins = Math.round(-remaining/60000);
+    applyFerulaChange(num, letra);
+    el('ferulaMotivationTxt').textContent = fmtDelayHM(excessMins);
+    el('ferulaMotivationOverlay').classList.add('show');
+  }
+}
+el('ferulaManualCancelBtn').addEventListener('click', ()=>{
+  pendingFerulaChange = null;
+  el('ferulaManualConfirmOverlay').classList.remove('show');
+});
+el('ferulaManualYesBtn').addEventListener('click', ()=>{
+  if(pendingFerulaChange){ applyFerulaChange(pendingFerulaChange.num, pendingFerulaChange.letra); pendingFerulaChange = null; }
+  el('ferulaManualConfirmOverlay').classList.remove('show');
+});
+el('ferulaMotivationOkBtn').addEventListener('click', ()=>{
+  el('ferulaMotivationOverlay').classList.remove('show');
+});
+
 el('ferulaNumSelect').addEventListener('change', ()=>{
-  applyFerulaChange(el('ferulaNumSelect').value, el('ferulaLetraSelect').value);
+  requestFerulaChange(el('ferulaNumSelect').value, el('ferulaLetraSelect').value);
 });
 el('ferulaLetraSelect').addEventListener('change', ()=>{
-  applyFerulaChange(el('ferulaNumSelect').value, el('ferulaLetraSelect').value);
+  requestFerulaChange(el('ferulaNumSelect').value, el('ferulaLetraSelect').value);
 });
 el('objetivoInput').addEventListener('change', ()=>{
   state.objetivoHoras = parseInt(el('objetivoInput').value,10)||22; save(); render();
@@ -1484,6 +1556,64 @@ el('enableNotifBtn').addEventListener('click', ()=>{
   }
 });
 
+/* ===================== EXPORTAR / IMPORTAR datos ===================== */
+el('exportBtn').addEventListener('click', async ()=>{
+  const fname = `AliTrack-backup-${dateKeyOf(Date.now())}.json`;
+  const json = JSON.stringify(state, null, 2);
+  const blob = new Blob([json], {type:'application/json'});
+  // 1) preferimos el panel nativo de compartir (el usuario elige dónde guardarlo)
+  try{
+    const file = new File([blob], fname, {type:'application/json'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file], title:'AliTrack — copia de datos'});
+      return;
+    }
+  }catch(e){ /* si el usuario cancela el share, no hacemos nada más */ if(e && e.name==='AbortError') return; }
+  // 2) alternativa: descarga normal
+  try{
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+    toast(`Guardado como ${fname} en tu carpeta de Descargas`);
+  }catch(e){ toast('No se ha podido exportar'); }
+});
+
+let pendingImportData = null;
+el('importBtn').addEventListener('click', ()=>{
+  el('importFileInput').value = '';
+  el('importFileInput').click();
+});
+el('importFileInput').addEventListener('change', ()=>{
+  const file = el('importFileInput').files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const parsed = JSON.parse(reader.result);
+      if(typeof parsed !== 'object' || parsed===null) throw new Error('formato inválido');
+      pendingImportData = parsed;
+      el('importConfirmOverlay').classList.add('show');
+    }catch(e){
+      toast('El archivo no es un backup válido de AliTrack');
+    }
+  };
+  reader.readAsText(file);
+});
+el('importCancelBtn').addEventListener('click', ()=>{
+  pendingImportData = null;
+  el('importConfirmOverlay').classList.remove('show');
+});
+el('importConfirmBtn').addEventListener('click', ()=>{
+  if(pendingImportData){
+    state = migrateState(pendingImportData);
+    pendingImportData = null;
+    save(); render();
+    toast('✓ Datos importados');
+  }
+  el('importConfirmOverlay').classList.remove('show');
+});
 
 function playOptimisticSound(){
   if(!audioCtx){ try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; } }
