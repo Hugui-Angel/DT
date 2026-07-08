@@ -129,6 +129,13 @@
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.65;}}
 
   .tap-hint{text-align:center;color:var(--text);font-size:1.05rem;font-weight:700;margin-top:16px;letter-spacing:.03em;}
+  .hist-row{display:flex;justify-content:space-between;align-items:center;padding:11px 6px;border-bottom:1px solid var(--line);}
+  .hist-row:last-child{border-bottom:none;}
+  .hist-row .hist-label{font-weight:700;font-size:.95rem;}
+  .hist-row .hist-dur{font-weight:700;font-size:.9rem;white-space:nowrap;}
+  .hist-row.under{color:var(--sin);}
+  .hist-row.over{color:var(--con);}
+  .hist-empty{text-align:center;color:var(--text-dim);font-size:.85rem;padding:20px 6px;}
 
   /* ---------- timer panel (sin countdown) ---------- */
   .timer-panel{
@@ -274,7 +281,7 @@
       <div class="sub">Dentali-allineatori Tracker</div>
       <div class="main">AliTrack</div>
     </div>
-    <div style="width:42px;"></div>
+    <button class="menu-btn" id="historyBtn">📊</button>
   </div>
 
   <div class="header-row" id="headerRow">
@@ -293,6 +300,13 @@
         <span class="revision-date" id="revisionDateDisplay">—</span>
       </div>
       <div class="revision-count">Faltan:<br><b id="revisionCountdown">—</b></div>
+    </div>
+  </div>
+
+  <div class="ready-banner" id="rachaBanner" style="display:none;margin-bottom:16px;margin-top:0;animation:none;cursor:default;">
+    🏅 <span id="rachaText">—</span>
+    <div style="margin-top:10px;">
+      <button class="btn btn-ok" id="rachaAcceptBtn" style="padding:8px 26px;font-size:.85rem;">Aceptar</button>
     </div>
   </div>
 
@@ -387,6 +401,20 @@
       <button class="btn btn-secondary" id="importCancelBtn">Cancelar</button>
       <button class="btn btn-ok" id="importConfirmBtn">Sí, importar</button>
     </div>
+  </div>
+</div>
+
+<div class="overlay" id="historyOverlay">
+  <div class="modal" style="max-height:85vh;overflow:visible;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <h3 style="margin:0;">📊 Histórico</h3>
+      <button id="historyCloseXBtn" style="background:none;border:none;color:var(--text-dim);font-size:1.5rem;cursor:pointer;line-height:1;padding:2px 4px;">&times;</button>
+    </div>
+    <div id="historyAverages" style="font-size:.85rem;color:var(--text-dim);margin:10px 0 14px;line-height:1.7;"></div>
+    <div id="historyTableWrap" style="overflow-y:auto;max-height:42vh;margin-bottom:16px;border-top:1px solid var(--line-strong);border-bottom:1px solid var(--line-strong);">
+      <div id="historyTable"></div>
+    </div>
+    <button class="btn btn-ok" id="historyAcceptBtn" style="width:100%;">Aceptar</button>
   </div>
 </div>
 
@@ -684,6 +712,10 @@ const defaultState = {
   revisionTomorrowShownFor: null, // valor de proximaRevision para el que YA se mostró "Mañana tienes revisión"
   revisionAskLastShown: null,     // ts de la última vez que se preguntó "¿Cuándo es la próxima revisión?"
   notas: '',                     // anotaciones libres del paciente (dolores, llagas...)
+  ferulaHistory: [],             // férulas ya terminadas: [{label, conMs, targetMs, endTs}, ...] (más nueva al final)
+  dailyLog: [],                  // días ya cerrados: [{date:'YYYY-MM-DD', conMs, sinMs}, ...] (para medias 7/30 días)
+  rachaCurrent: 0,                // días seguidos cumpliendo el objetivo diario
+  rachaLastShownDate: null,       // último día en que se mostró/consideró el aviso de racha
   proximaRevisionHora: '10:00',
 
   status: 'con',                 // 'con' | 'sin'
@@ -716,6 +748,10 @@ function migrateState(s){
   if(s.revisionTomorrowShownFor === undefined) s.revisionTomorrowShownFor = null;
   if(s.revisionAskLastShown === undefined) s.revisionAskLastShown = null;
   if(typeof s.notas !== 'string') s.notas = '';
+  if(!Array.isArray(s.ferulaHistory)) s.ferulaHistory = [];
+  if(!Array.isArray(s.dailyLog)) s.dailyLog = [];
+  if(typeof s.rachaCurrent !== 'number') s.rachaCurrent = 0;
+  if(s.rachaLastShownDate === undefined) s.rachaLastShownDate = null;
   if(s.priorDaysConMs === undefined) s.priorDaysConMs = s.accumConMs || 0;
   if(s.priorDaysSinMs === undefined) s.priorDaysSinMs = s.accumSinMs || 0;
   if(s.ferulaAlarmFired === undefined) s.ferulaAlarmFired = false;
@@ -818,16 +854,20 @@ function rolloverIfNeeded(){
   let safety = 0;
   while(state.todayDate !== dateKeyOf(Date.now()) && safety < 3650){
     safety++;
+    const closingDate = state.todayDate;
     const oldDayStart = startOfDayTs(state.todayDate);
     const oldDayEnd = oldDayStart + 86400000;
     const ferulaCutoff = Math.max(state.ferulaStartTs || 0, oldDayStart); // el CON solo cuenta desde aquí
+    let dayConTotal = 0, daySinTotal = 0; // total del día completo, SIN clipar por férula (para el histórico/racha)
     // parte del tramo en curso (status actual) que cae dentro del día que se cierra
     const segStart = Math.max(state.statusSince, oldDayStart);
     if(segStart < oldDayEnd){
       if(state.status==='con'){
+        dayConTotal += (oldDayEnd - segStart);
         const conFrom = Math.max(segStart, ferulaCutoff);
         if(conFrom < oldDayEnd) state.priorDaysConMs += (oldDayEnd - conFrom);
       } else {
+        daySinTotal += (oldDayEnd - segStart);
         state.priorDaysSinMs += (oldDayEnd - segStart);
       }
     }
@@ -836,12 +876,18 @@ function rolloverIfNeeded(){
       const start = Math.max(s.start, oldDayStart), end = Math.min(s.end, oldDayEnd);
       if(end<=start) return;
       if(s.status==='con'){
+        dayConTotal += (end - start);
         const conFrom = Math.max(start, ferulaCutoff);
         if(conFrom < end) state.priorDaysConMs += (end - conFrom);
       } else {
+        daySinTotal += (end - start);
         state.priorDaysSinMs += (end - start);
       }
     });
+    // histórico diario (para las medias de 7/30 días) y racha de cumplimiento
+    state.dailyLog.push({date: closingDate, conMs: dayConTotal, sinMs: daySinTotal});
+    if(state.dailyLog.length > 400) state.dailyLog.shift();
+    if(dayConTotal >= state.objetivoHoras*3600000) state.rachaCurrent++; else state.rachaCurrent = 0;
     state.todaySegments = [];
     state.todayFerulaEvents = [];
     state.todayDate = nextDateKey(state.todayDate);
@@ -884,6 +930,7 @@ function liveSinMs(){ rolloverIfNeeded(); return state.priorDaysSinMs + todayLiv
 const el = id=>document.getElementById(id);
 
 function render(){
+  checkRachaBanner();
   el('ferulaIdDisplay').textContent = formatFerula(currentNumber(), currentLetter());
   el('ferulaNumSelect').value = currentNumber();
   el('ferulaLetraSelect').value = currentLetter();
@@ -1298,6 +1345,58 @@ el('revisionTomorrowOkBtn').addEventListener('click', ()=>{
 
 /* ===================== MENÚ LATERAL ===================== */
 el('menuBtn').addEventListener('click', ()=>el('sideOverlay').classList.add('show'));
+
+/* ===================== HISTÓRICO (férulas + medias) ===================== */
+function avgConMsForLastDays(days){
+  const entries = state.dailyLog.slice(-days);
+  if(entries.length===0) return null;
+  const sum = entries.reduce((a,d)=>a+d.conMs,0);
+  return sum/entries.length;
+}
+function renderHistoryModal(){
+  const avg30 = avgConMsForLastDays(30);
+  const avg7 = avgConMsForLastDays(7);
+  const hoy = todayLiveConMs();
+  const line = (label, ms)=> `${label}: <b style="color:var(--text);">${ms===null ? 'sin datos aún' : fmtDHM(ms)}</b>`;
+  el('historyAverages').innerHTML = [
+    line('Media últimos 30 días', avg30),
+    line('Media últimos 7 días', avg7),
+    line('Hoy', hoy)
+  ].join('<br>');
+
+  const table = el('historyTable');
+  if(state.ferulaHistory.length===0){
+    table.innerHTML = `<div class="hist-empty">Aún no hay férulas completadas</div>`;
+  } else {
+    table.innerHTML = state.ferulaHistory.slice().reverse().map(h=>{
+      const cls = h.conMs >= h.targetMs ? 'over' : 'under';
+      return `<div class="hist-row ${cls}"><span class="hist-label">${h.label}</span><span class="hist-dur">${fmtDHM(h.conMs)}</span></div>`;
+    }).join('');
+  }
+}
+el('historyBtn').addEventListener('click', ()=>{
+  renderHistoryModal();
+  el('historyOverlay').classList.add('show');
+});
+el('historyCloseXBtn').addEventListener('click', ()=>el('historyOverlay').classList.remove('show'));
+el('historyAcceptBtn').addEventListener('click', ()=>el('historyOverlay').classList.remove('show'));
+
+/* ===================== RACHA de cumplimiento ===================== */
+// Se comprueba una vez por día (la primera vez que se renderiza ese día). Sin sonido.
+// Si la racha se rompió, no decimos nada — simplemente no sale banner ese día.
+function checkRachaBanner(){
+  const todayKey = dateKeyOf(Date.now());
+  if(state.rachaLastShownDate === todayKey) return; // ya considerado hoy
+  state.rachaLastShownDate = todayKey;
+  save();
+  if(state.rachaCurrent >= 2){
+    el('rachaText').textContent = `¡Llevas ${state.rachaCurrent} días seguidos cumpliendo tu objetivo!`;
+    el('rachaBanner').style.display = 'block';
+  }
+}
+el('rachaAcceptBtn').addEventListener('click', ()=>{
+  el('rachaBanner').style.display = 'none';
+});
 el('sideCloseBtn').addEventListener('click', ()=>el('sideOverlay').classList.remove('show'));
 el('sideOverlay').addEventListener('click', (e)=>{
   if(e.target===el('sideOverlay')) el('sideOverlay').classList.remove('show');
@@ -1322,6 +1421,9 @@ function applyFerulaChange(num, letra){
   // cerrar el tramo en curso en el timeline de HOY antes de cambiar la etiqueta,
   // igual que en el cambio automático, para no perder CON/SIN ya registrados hoy
   commitCurrentSegment();
+  // guardar en el histórico la férula que se acaba de terminar, ANTES de resetear sus contadores
+  state.ferulaHistory.push({label: state.ferulaActual, conMs: liveConMs(), targetMs: targetMsForCurrent(), endTs: Date.now()});
+  if(state.ferulaHistory.length > 200) state.ferulaHistory.shift();
   state.ferulaActual = formatFerula(num, letra);
   // reiniciar solo el contador de cuenta atrás de la NUEVA férula (priorDays + su propio arranque).
   // state.todaySegments NO se toca: el día sigue repartiéndose entre CON(férula anterior) + CON(actual) + SIN.
@@ -1476,6 +1578,9 @@ function advanceFerula(){
   // cerrar el tramo CON de la férula anterior en el timeline de HOY antes de cambiar,
   // para no perder ese tiempo ni el de los tramos SIN ya registrados hoy
   commitCurrentSegment();
+  // guardar en el histórico la férula que se acaba de terminar, ANTES de resetear sus contadores
+  state.ferulaHistory.push({label: state.ferulaActual, conMs: liveConMs(), targetMs: targetMsForCurrent(), endTs: Date.now()});
+  if(state.ferulaHistory.length > 200) state.ferulaHistory.shift();
   // calcular la siguiente férula automáticamente
   const parts = state.ferulaActual.split('-');
   const num = parseInt(parts[0],10);
