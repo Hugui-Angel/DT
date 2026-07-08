@@ -725,11 +725,21 @@ function migrateState(s){
   if(s.todayDate === undefined) s.todayDate = null;
   if(s.proximaRevisionHora === undefined) s.proximaRevisionHora = '10:00';
   if(![20,21,22,23].includes(Number(s.objetivoHoras))) s.objetivoHoras = 22;
+  // limpieza puntual: si el snapshot de deshacer ya venía anidado (bug anterior), lo vaciamos una vez
+  if(s.lastStateBeforeUndo && s.lastStateBeforeUndo.lastStateBeforeUndo){
+    s.lastStateBeforeUndo = null;
+  }
   return s;
 }
 migrateState(state);
 save();
 function save(){ storage.set('alitrack_state', state); }
+// Toma una foto del estado para poder deshacer, sin anidar la foto anterior dentro (si no, crece sin parar)
+function snapshotForUndo(){
+  const copy = JSON.parse(JSON.stringify(state));
+  copy.lastStateBeforeUndo = null;
+  state.lastStateBeforeUndo = copy;
+}
 
 /* ===================== HELPERS ===================== */
 function fmtHMS(ms){
@@ -1016,7 +1026,7 @@ function commitCurrentSegment(){
 }
 
 function switchToCon(){
-  state.lastStateBeforeUndo = JSON.parse(JSON.stringify(state));
+  snapshotForUndo();
   commitCurrentSegment();
   state.status='con';
   state.statusSince=Date.now();
@@ -1024,7 +1034,7 @@ function switchToCon(){
   save(); render();
 }
 function switchToSin(minutes){
-  state.lastStateBeforeUndo = JSON.parse(JSON.stringify(state));
+  snapshotForUndo();
   commitCurrentSegment();
   state.status='sin';
   state.statusSince=Date.now();
@@ -1216,7 +1226,7 @@ el('segSaveBtn').addEventListener('click', ()=>{
   newEnd = Math.max(todayStart, Math.min(newEnd, now));
   if(newEnd <= newStart){ toast('La hora de fin debe ser posterior al inicio'); return; }
 
-  state.lastStateBeforeUndo = JSON.parse(JSON.stringify(state));
+  snapshotForUndo();
 
   const segs = state.todaySegments;
   if(!seg.live){
@@ -1461,7 +1471,7 @@ el('ferulaConfirmNoBtn').addEventListener('click', ()=>{
 });
 
 function advanceFerula(){
-  state.lastStateBeforeUndo = JSON.parse(JSON.stringify(state));
+  snapshotForUndo();
   rolloverIfNeeded();
   // cerrar el tramo CON de la férula anterior en el timeline de HOY antes de cambiar,
   // para no perder ese tiempo ni el de los tramos SIN ya registrados hoy
