@@ -704,7 +704,7 @@ const storage = {
 
 /* ===================== STATE ===================== */
 const defaultState = {
-  ferulaActual: '33-A',
+  ferulaActual: '1-A',
   alternancia: 'alternas',      // 'iguales' | 'alternas'
   daysA: 7,
   daysB: 3,
@@ -945,7 +945,7 @@ function render(){
   // revisión
   if(state.proximaRevision){
     const d = new Date(`${state.proximaRevision}T${state.proximaRevisionHora||'00:00'}:00`);
-    const fechaTxt = d.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'});
+    const fechaTxt = d.toLocaleDateString('es-ES',{day:'2-digit',month:'short'});
     const horaTxt = state.proximaRevisionHora || '';
     el('revisionDateDisplay').innerHTML = `${fechaTxt}<br>${horaTxt}`;
     const diff = d.getTime()-Date.now();
