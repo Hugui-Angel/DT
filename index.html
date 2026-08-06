@@ -506,9 +506,40 @@
       <label>Hora de fin</label>
       <input type="time" id="segEndInput">
     </div>
+    <div class="modal-actions" style="margin-bottom:10px;">
+      <button class="btn btn-danger" id="segDeleteBtn" style="width:100%;">🗑 Borrar este tramo</button>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" id="segCancelBtn">Cancelar</button>
       <button class="btn btn-ok" id="segSaveBtn">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="ferulaEventModalOverlay">
+  <div class="modal">
+    <h3>Cambio de férula</h3>
+    <div class="field">
+      <label>Hora del cambio</label>
+      <input type="time" id="ferulaEventTimeInput">
+    </div>
+    <div class="modal-actions" style="margin-bottom:10px;">
+      <button class="btn btn-danger" id="ferulaEventDeleteBtn" style="width:100%;">🗑 Borrar este cambio</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="ferulaEventCancelBtn">Cancelar</button>
+      <button class="btn btn-ok" id="ferulaEventSaveBtn">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="deleteConfirmOverlay">
+  <div class="modal" style="text-align:center;">
+    <h3 id="deleteConfirmText">¿Borrar esto?</h3>
+    <p style="color:var(--text-dim);font-size:.85rem;margin:0 0 18px;">Esta acción no se puede deshacer</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="deleteConfirmCancelBtn">Cancelar</button>
+      <button class="btn btn-danger" id="deleteConfirmYesBtn">Borrar</button>
     </div>
   </div>
 </div>
@@ -1206,13 +1237,15 @@ function renderTimeline(){
   const list = el('timelineList');
   list.innerHTML = '';
   const segEntries = segs.map(seg=>({type:'seg', ts:seg.start, seg}));
-  const eventEntries = (state.todayFerulaEvents||[]).map(ev=>({type:'event', ts:ev.ts, label:ev.label}));
+  const eventEntries = (state.todayFerulaEvents||[]).map((ev,i)=>({type:'event', ts:ev.ts, label:ev.label, evIdx:i}));
   const combined = [...segEntries, ...eventEntries].sort((a,b)=> a.ts-b.ts || (a.type==='event' ? -1 : 1));
   combined.forEach(entry=>{
     if(entry.type==='event'){
       const marker = document.createElement('div');
       marker.className = 'tl-marker';
+      marker.style.cursor = 'pointer';
       marker.innerHTML = `🦷 Cambio de férula → <b>${entry.label}</b> · ${fmtClock(entry.ts)}`;
+      marker.addEventListener('click', ()=>openFerulaEventModal(entry.evIdx));
       list.appendChild(marker);
       return;
     }
@@ -1250,9 +1283,29 @@ function openSegmentModal(seg){
   el('segStartField').style.display = seg.idx===0 ? 'none' : 'block';
   // el tramo en curso no tiene "fin" editable (sigue corriendo)
   el('segEndField').style.display = seg.live ? 'none' : 'block';
+  // solo se puede borrar un tramo SIN ya cerrado (no el que está en curso)
+  el('segDeleteBtn').style.display = (seg.status==='sin' && !seg.live) ? 'block' : 'none';
   el('segmentModalOverlay').classList.add('show');
 }
 el('segCancelBtn').addEventListener('click', ()=>el('segmentModalOverlay').classList.remove('show'));
+
+// Mueve un instante concreto (oldTs) a uno nuevo (newTs) en TODOS los sitios donde pueda
+// aparecer ese mismo límite: tramos vecinos (start o end), el arranque del tramo en curso,
+// el arranque de la cuenta atrás de la férula activa, y el marcador de cambio de férula
+// que coincida. Así, edites desde donde edites, todo lo que compartía esa hora se mueve junto
+// y no quedan huecos ni solapes.
+function moveBoundary(oldTs, newTs){
+  if(oldTs === newTs) return;
+  state.todaySegments.forEach(s=>{
+    if(s.start === oldTs) s.start = newTs;
+    if(s.end === oldTs) s.end = newTs;
+  });
+  if(state.statusSince === oldTs) state.statusSince = newTs;
+  if(state.ferulaStartTs === oldTs) state.ferulaStartTs = newTs;
+  (state.todayFerulaEvents||[]).forEach(e=>{
+    if(e.ts === oldTs) e.ts = newTs;
+  });
+}
 
 el('segSaveBtn').addEventListener('click', ()=>{
   const seg = editingSegment;
@@ -1277,30 +1330,142 @@ el('segSaveBtn').addEventListener('click', ()=>{
 
   snapshotForUndo();
 
+  const oldStart = seg.start, oldEnd = seg.end;
   const segs = state.todaySegments;
   if(!seg.live){
     segs[seg.idx].start = newStart;
     segs[seg.idx].end = newEnd;
   }
-  // cascada hacia atrás: el tramo anterior termina cuando empieza este
-  if(seg.idx>0){
-    if(seg.live) segs[seg.idx-1].end = newStart;
-    else segs[seg.idx-1].end = newStart;
-  }
-  // cascada hacia adelante: el siguiente tramo (o el "ahora" en curso) empieza cuando este termina
-  if(!seg.live){
-    if(seg.idx < segs.length-1){
-      segs[seg.idx+1].start = newEnd;
-    } else {
-      // este era el último tramo cerrado: el tramo en curso pasa a empezar en newEnd
-      state.statusSince = newEnd;
-    }
-  }
+
+  // mover el límite de inicio (arrastra también al tramo anterior, o al marcador de férula si coincidía)
+  if(oldStart !== newStart) moveBoundary(oldStart, newStart);
+  // mover el límite de fin (arrastra al siguiente tramo, al "ahora" en curso, o a un marcador de férula)
+  if(!seg.live && oldEnd !== newEnd) moveBoundary(oldEnd, newEnd);
 
   el('segmentModalOverlay').classList.remove('show');
   save();
   renderTimeline();
   render();
+});
+
+/* ----- Borrar tramo (solo SIN, ya cerrado): fusiona los vecinos para no dejar hueco ----- */
+function deleteSegment(seg){
+  const segs = state.todaySegments;
+  const idx = seg.idx;
+  const hasNext = idx < segs.length - 1;
+  if(idx > 0){
+    if(hasNext){
+      // hay tramo antes y después: se fusionan directamente, el borrado desaparece
+      segs[idx-1].end = segs[idx+1].start;
+      segs.splice(idx, 1);
+    } else {
+      // era el último tramo cerrado, justo antes del tramo en curso: se fusiona con el anterior
+      const mergeStart = segs[idx-1].start;
+      segs.splice(idx-1, 2);
+      state.statusSince = mergeStart;
+    }
+  } else {
+    if(hasNext){
+      // era el primer tramo del día: el siguiente pasa a empezar donde empezaba este
+      segs[idx+1].start = seg.start;
+      segs.splice(idx, 1);
+    } else {
+      // era el único tramo de hoy: se borra sin más, el estado actual pasa a cubrir todo el día
+      segs.splice(idx, 1);
+      state.statusSince = seg.start;
+    }
+  }
+  save();
+  renderTimeline();
+  render();
+}
+
+/* ----- Confirmación genérica de borrado (se reutiliza para tramos y cambios de férula) ----- */
+let pendingDeleteAction = null;
+function askDeleteConfirm(action){
+  pendingDeleteAction = action;
+  el('deleteConfirmOverlay').classList.add('show');
+}
+el('deleteConfirmCancelBtn').addEventListener('click', ()=>{
+  pendingDeleteAction = null;
+  el('deleteConfirmOverlay').classList.remove('show');
+});
+el('deleteConfirmYesBtn').addEventListener('click', ()=>{
+  el('deleteConfirmOverlay').classList.remove('show');
+  el('segmentModalOverlay').classList.remove('show');
+  el('ferulaEventModalOverlay').classList.remove('show');
+  if(pendingDeleteAction){ snapshotForUndo(); pendingDeleteAction(); pendingDeleteAction = null; }
+});
+el('segDeleteBtn').addEventListener('click', ()=>{
+  const seg = editingSegment;
+  if(!seg) return;
+  el('deleteConfirmText').textContent = '¿Borrar este tramo SIN?';
+  askDeleteConfirm(()=>deleteSegment(seg));
+});
+
+/* ===================== EDITAR / BORRAR hora de cambio de férula ===================== */
+let editingFerulaEventIdx = null;
+function openFerulaEventModal(idx){
+  editingFerulaEventIdx = idx;
+  const ev = state.todayFerulaEvents[idx];
+  el('ferulaEventTimeInput').value = fmtClock(ev.ts);
+  el('ferulaEventModalOverlay').classList.add('show');
+}
+el('ferulaEventCancelBtn').addEventListener('click', ()=>el('ferulaEventModalOverlay').classList.remove('show'));
+el('ferulaEventSaveBtn').addEventListener('click', ()=>{
+  const idx = editingFerulaEventIdx;
+  if(idx===null) return;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(el('ferulaEventTimeInput').value||'');
+  if(!m){ toast('Hora no válida'); return; }
+  const d = new Date(); d.setHours(parseInt(m[1],10), parseInt(m[2],10), 0, 0);
+  let newTs = Math.max(startOfToday(), Math.min(d.getTime(), Date.now()));
+
+  snapshotForUndo();
+  const ev = state.todayFerulaEvents[idx];
+  const oldTs = ev.ts;
+  ev.ts = newTs;
+  // mueve también el mismo límite en tramos, tramo en curso y arranque de la férula activa si coincidía
+  moveBoundary(oldTs, newTs);
+
+  el('ferulaEventModalOverlay').classList.remove('show');
+  save();
+  renderTimeline();
+  render();
+});
+el('ferulaEventDeleteBtn').addEventListener('click', ()=>{
+  const idx = editingFerulaEventIdx;
+  if(idx===null) return;
+  el('deleteConfirmText').textContent = '¿Borrar este cambio de férula?';
+  askDeleteConfirm(()=>{
+    const ev = state.todayFerulaEvents[idx];
+    const wasActive = ev.ts === state.ferulaStartTs;
+    const histIdx = ev.historyIdx;
+    const hasHistory = typeof histIdx === 'number' && state.ferulaHistory[histIdx] !== undefined;
+
+    if(wasActive && hasHistory){
+      // deshacer también la férula anterior: recuperar su nombre y dejar su cuenta atrás donde estaba
+      const prev = state.ferulaHistory[histIdx];
+      state.ferulaActual = prev.label;
+      state.priorDaysConMs = prev.conMs;
+      state.ferulaAlarmFired = false;
+      // el arranque de la férula "recuperada" sigue siendo el mismo momento del cambio que borramos,
+      // así el CON de hoy desde entonces (que ya estaba en todaySegments) se sigue contando correctamente
+    } else if(wasActive){
+      // sin histórico que restaurar (dato antiguo): al menos que la cuenta atrás no quede coja
+      state.ferulaStartTs = startOfToday();
+    }
+    if(hasHistory){
+      state.ferulaHistory.splice(histIdx, 1);
+      // reajustar los índices de otros eventos de hoy que apuntaban a entradas posteriores del histórico
+      state.todayFerulaEvents.forEach(e=>{
+        if(typeof e.historyIdx === 'number' && e.historyIdx > histIdx) e.historyIdx--;
+      });
+    }
+    state.todayFerulaEvents.splice(idx, 1);
+    save();
+    renderTimeline();
+    render();
+  });
 });
 
 /* ===================== EDITAR férula (desde pantalla principal) ===================== */
@@ -1425,6 +1590,7 @@ function applyFerulaChange(num, letra){
   commitCurrentSegment();
   // guardar en el histórico la férula que se acaba de terminar, ANTES de resetear sus contadores
   state.ferulaHistory.push({label: state.ferulaActual, conMs: liveConMs(), targetMs: targetMsForCurrent(), endTs: Date.now()});
+  const histIdx1 = state.ferulaHistory.length - 1;
   if(state.ferulaHistory.length > 200) state.ferulaHistory.shift();
   state.ferulaActual = formatFerula(num, letra);
   // reiniciar solo el contador de cuenta atrás de la NUEVA férula (priorDays + su propio arranque).
@@ -1433,7 +1599,7 @@ function applyFerulaChange(num, letra){
   state.statusSince = Date.now();
   state.ferulaStartTs = state.statusSince;
   state.ferulaAlarmFired = false;
-  state.todayFerulaEvents.push({ts: state.ferulaStartTs, label: state.ferulaActual});
+  state.todayFerulaEvents.push({ts: state.ferulaStartTs, label: state.ferulaActual, historyIdx: histIdx1});
   save(); render();
 }
 
@@ -1582,6 +1748,7 @@ function advanceFerula(){
   commitCurrentSegment();
   // guardar en el histórico la férula que se acaba de terminar, ANTES de resetear sus contadores
   state.ferulaHistory.push({label: state.ferulaActual, conMs: liveConMs(), targetMs: targetMsForCurrent(), endTs: Date.now()});
+  const histIdx2 = state.ferulaHistory.length - 1;
   if(state.ferulaHistory.length > 200) state.ferulaHistory.shift();
   // calcular la siguiente férula automáticamente
   const parts = state.ferulaActual.split('-');
@@ -1600,7 +1767,7 @@ function advanceFerula(){
   state.statusSince = Date.now();
   state.ferulaStartTs = state.statusSince;
   state.ferulaAlarmFired = false;
-  state.todayFerulaEvents.push({ts: state.ferulaStartTs, label: state.ferulaActual});
+  state.todayFerulaEvents.push({ts: state.ferulaStartTs, label: state.ferulaActual, historyIdx: histIdx2});
   clearTimeout(ferulaDelayTimer);
   save(); render();
   toast(`Cambiado a ${state.ferulaActual}`);
