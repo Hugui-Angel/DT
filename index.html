@@ -877,12 +877,47 @@ function startOfDayTs(key){
 }
 function startOfToday(){ return startOfDayTs(dateKeyOf(Date.now())); }
 
+/* Autocorrige los tramos de HOY con un barrido cronológico: cada tramo se recorta para empezar
+   justo donde termina lo ya cubierto (sin huecos ni solapes), y los que quedan completamente
+   tapados por uno anterior se descartan. Después funde tramos consecutivos del mismo estado en
+   una sola línea — salvo que justo en ese punto haya un marcador de cambio de férula, que se
+   respeta como límite aunque el estado no cambie. Se ejecuta en cada rollover para que cualquier
+   desajuste (por ejemplo, al editar horas) se repare solo. */
+function normalizeTodaySegments(){
+  const segs = state.todaySegments;
+  if(!segs || segs.length === 0) return;
+  segs.sort((a,b)=> a.start-b.start || a.end-b.end);
+  const todayStart = startOfToday();
+  const clean = [];
+  let cursor = todayStart;
+  for(const s of segs){
+    const start = Math.max(s.start, cursor);
+    const end = Math.max(s.end, start);
+    if(end <= cursor) continue; // ya cubierto por completo por un tramo anterior: se descarta
+    clean.push({status: s.status, start, end});
+    cursor = end;
+  }
+  const ferulaTimes = new Set((state.todayFerulaEvents||[]).map(e=>e.ts));
+  for(let i=clean.length-2;i>=0;i--){
+    if(clean[i].status === clean[i+1].status && !ferulaTimes.has(clean[i].end)){
+      clean[i].end = clean[i+1].end;
+      clean.splice(i+1,1);
+    }
+  }
+  state.todaySegments = clean;
+  // el tramo en curso arranca exactamente donde termina el último tramo cerrado de hoy
+  if(clean.length){
+    state.statusSince = clean[clean.length-1].end;
+  }
+}
+
 /* Cierra días pasados volcando su tiempo en priorDaysConMs/SinMs, y vacía los tramos de hoy
    al cruzar cada medianoche. Soporta varios días saltados si la app estuvo cerrada.
    IMPORTANTE: si hubo un cambio de férula ese día, el CON de ANTES del cambio (férula anterior)
    no debe sumarse a priorDaysConMs (que es el contador de la férula ACTUAL) — si no, al llegar
    la medianoche se "cuela" ese tiempo extra y puede disparar el aviso de cambio sin motivo real. */
 function rolloverIfNeeded(){
+  normalizeTodaySegments();
   if(state.todayDate === null){ state.todayDate = dateKeyOf(Date.now()); save(); return; }
   let safety = 0;
   while(state.todayDate !== dateKeyOf(Date.now()) && safety < 3650){
