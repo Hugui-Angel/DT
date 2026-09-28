@@ -887,7 +887,7 @@ function normalizeTodaySegments(){
   const segs = state.todaySegments;
   if(!segs || segs.length === 0) return;
   segs.sort((a,b)=> a.start-b.start || a.end-b.end);
-  const todayStart = startOfToday();
+  const todayStart = state.todayDate ? startOfDayTs(state.todayDate) : startOfToday();
   const clean = [];
   let cursor = todayStart;
   for(const s of segs){
@@ -917,7 +917,6 @@ function normalizeTodaySegments(){
    no debe sumarse a priorDaysConMs (que es el contador de la férula ACTUAL) — si no, al llegar
    la medianoche se "cuela" ese tiempo extra y puede disparar el aviso de cambio sin motivo real. */
 function rolloverIfNeeded(){
-  normalizeTodaySegments();
   if(state.todayDate === null){ state.todayDate = dateKeyOf(Date.now()); save(); return; }
   let safety = 0;
   while(state.todayDate !== dateKeyOf(Date.now()) && safety < 3650){
@@ -960,6 +959,9 @@ function rolloverIfNeeded(){
     state.todayFerulaEvents = [];
     state.todayDate = nextDateKey(state.todayDate);
   }
+  // el autoarreglo de tramos va DESPUÉS de cerrar los días pasados (si no, descartaría
+  // los tramos de ayer antes de sumarlos)
+  normalizeTodaySegments();
   save();
 }
 
