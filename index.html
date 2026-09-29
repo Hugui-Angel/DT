@@ -923,7 +923,7 @@ function rolloverIfNeeded(){
     safety++;
     const closingDate = state.todayDate;
     const oldDayStart = startOfDayTs(state.todayDate);
-    const oldDayEnd = oldDayStart + 86400000;
+    const oldDayEnd = startOfDayTs(nextDateKey(state.todayDate)); // no siempre son 24 h (cambio de hora)
     const ferulaCutoff = Math.max(state.ferulaStartTs || 0, oldDayStart); // el CON solo cuenta desde aquí
     let dayConTotal = 0, daySinTotal = 0; // total del día completo, SIN clipar por férula (para el histórico/racha)
     // parte del tramo en curso (status actual) que cae dentro del día que se cierra
@@ -1463,6 +1463,10 @@ el('ferulaEventSaveBtn').addEventListener('click', ()=>{
   ev.ts = newTs;
   // mueve también el mismo límite en tramos, tramo en curso y arranque de la férula activa si coincidía
   moveBoundary(oldTs, newTs);
+  // y mantiene sincronizado el "endTs" de su entrada en el histórico, para que ese apunte no quede viejo
+  if(typeof ev.historyIdx==='number' && state.ferulaHistory[ev.historyIdx]){
+    state.ferulaHistory[ev.historyIdx].endTs = newTs;
+  }
 
   el('ferulaEventModalOverlay').classList.remove('show');
   save();
@@ -1481,9 +1485,10 @@ el('ferulaEventDeleteBtn').addEventListener('click', ()=>{
 
     if(wasActive && hasHistory){
       // deshacer también la férula anterior: recuperar su nombre y dejar su cuenta atrás donde estaba
+      // (usamos el valor VIVO, no la foto congelada, por si se editó algún tramo de antes del cambio)
       const prev = state.ferulaHistory[histIdx];
       state.ferulaActual = prev.label;
-      state.priorDaysConMs = prev.conMs;
+      state.priorDaysConMs = ferulaHistoryConMs(prev);
       state.ferulaAlarmFired = false;
       // el arranque de la férula "recuperada" sigue siendo el mismo momento del cambio que borramos,
       // así el CON de hoy desde entonces (que ya estaba en todaySegments) se sigue contando correctamente
@@ -1557,6 +1562,17 @@ function avgConMsForLastDays(days){
   const sum = entries.reduce((a,d)=>a+d.conMs,0);
   return sum/entries.length;
 }
+// El CON guardado en el histórico es una foto del momento del cambio. Si la férula terminó
+// HOY, en vez de fiarnos de esa foto (que puede haber quedado vieja si luego editas un tramo
+// de antes del cambio) lo recalculamos en vivo a partir de los tramos de hoy.
+function ferulaHistoryConMs(entry){
+  if(entry.endTs >= startOfToday()){
+    return state.todaySegments
+      .filter(s=>s.status==='con' && s.end<=entry.endTs)
+      .reduce((a,s)=>a+(s.end-s.start),0);
+  }
+  return entry.conMs;
+}
 function renderHistoryModal(){
   const avg30 = avgConMsForLastDays(30);
   const avg7 = avgConMsForLastDays(7);
@@ -1573,8 +1589,9 @@ function renderHistoryModal(){
     table.innerHTML = `<div class="hist-empty">Aún no hay férulas completadas</div>`;
   } else {
     table.innerHTML = state.ferulaHistory.slice().reverse().map(h=>{
-      const cls = h.conMs >= h.targetMs ? 'over' : 'under';
-      return `<div class="hist-row ${cls}"><span class="hist-label">${h.label}</span><span class="hist-dur">${fmtDHM(h.conMs)}</span></div>`;
+      const conMs = ferulaHistoryConMs(h);
+      const cls = conMs >= h.targetMs ? 'over' : 'under';
+      return `<div class="hist-row ${cls}"><span class="hist-label">${h.label}</span><span class="hist-dur">${fmtDHM(conMs)}</span></div>`;
     }).join('');
   }
 }
@@ -1589,6 +1606,7 @@ el('historyAcceptBtn').addEventListener('click', ()=>el('historyOverlay').classL
 // Se comprueba una vez por día (la primera vez que se renderiza ese día). Sin sonido.
 // Si la racha se rompió, no decimos nada — simplemente no sale banner ese día.
 function checkRachaBanner(){
+  rolloverIfNeeded(); // primero cerrar el día anterior, para evaluar la racha ya actualizada
   const todayKey = dateKeyOf(Date.now());
   if(state.rachaLastShownDate === todayKey) return; // ya considerado hoy
   state.rachaLastShownDate = todayKey;
@@ -1596,6 +1614,8 @@ function checkRachaBanner(){
   if(state.rachaCurrent >= 2){
     el('rachaText').textContent = `¡Llevas ${state.rachaCurrent} días seguidos cumpliendo tu objetivo!`;
     el('rachaBanner').style.display = 'block';
+  } else {
+    el('rachaBanner').style.display = 'none'; // sin racha: nada de mensajes viejos
   }
 }
 el('rachaAcceptBtn').addEventListener('click', ()=>{
