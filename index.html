@@ -832,7 +832,7 @@ function fmtDaysAtTarget(remainingWearMs){
   if(remainingWearMs<=0) return 'Listo';
   const totalMin = Math.round(remainingWearMs/60000);
   const h = Math.floor(totalMin/60), m = totalMin%60;
-  if(h>=48) return `${Math.floor(h/24)}d ${h%24}h`;
+  if(h>=24) return `${Math.floor(h/24)}d ${h%24}h`;
   if(h>=1)  return `${h}h ${m}m`;
   return `${m}m`;
 }
@@ -955,6 +955,12 @@ function rolloverIfNeeded(){
     state.dailyLog.push({date: closingDate, conMs: dayConTotal, sinMs: daySinTotal});
     if(state.dailyLog.length > 400) state.dailyLog.shift();
     if(dayConTotal >= state.objetivoHoras*3600000) state.rachaCurrent++; else state.rachaCurrent = 0;
+    // fijar el CON definitivo de las férulas que terminaron ese día (ya con las posibles ediciones)
+    state.ferulaHistory.forEach(fh=>{
+      if(typeof fh.priorMs==='number' && fh.endTs>=oldDayStart && fh.endTs<oldDayEnd){
+        fh.conMs = ferulaHistoryConMs(fh, oldDayStart);
+      }
+    });
     state.todaySegments = [];
     state.todayFerulaEvents = [];
     state.todayDate = nextDateKey(state.todayDate);
@@ -1565,11 +1571,18 @@ function avgConMsForLastDays(days){
 // El CON guardado en el histórico es una foto del momento del cambio. Si la férula terminó
 // HOY, en vez de fiarnos de esa foto (que puede haber quedado vieja si luego editas un tramo
 // de antes del cambio) lo recalculamos en vivo a partir de los tramos de hoy.
-function ferulaHistoryConMs(entry){
-  if(entry.endTs >= startOfToday()){
-    return state.todaySegments
-      .filter(s=>s.status==='con' && s.end<=entry.endTs)
-      .reduce((a,s)=>a+(s.end-s.start),0);
+function ferulaHistoryConMs(entry, dayStart){
+  if(dayStart===undefined) dayStart = startOfToday();
+  // solo recalculable si la férula terminó en el día cuyos tramos tenemos en memoria y guardamos su base
+  if(typeof entry.priorMs==='number' && entry.endTs >= dayStart){
+    const from = Math.max(entry.cutoffTs || 0, dayStart);
+    let v = entry.priorMs; // CON acumulado en días anteriores de esa férula
+    state.todaySegments.forEach(s=>{
+      if(s.status!=='con') return;
+      const lo = Math.max(s.start, from), hi = Math.min(s.end, entry.endTs);
+      if(hi>lo) v += hi-lo;
+    });
+    return v;
   }
   return entry.conMs;
 }
@@ -1646,7 +1659,7 @@ function applyFerulaChange(num, letra){
   // igual que en el cambio automático, para no perder CON/SIN ya registrados hoy
   commitCurrentSegment();
   // guardar en el histórico la férula que se acaba de terminar, ANTES de resetear sus contadores
-  state.ferulaHistory.push({label: state.ferulaActual, conMs: liveConMs(), targetMs: targetMsForCurrent(), endTs: Date.now()});
+  state.ferulaHistory.push({label: state.ferulaActual, conMs: liveConMs(), targetMs: targetMsForCurrent(), endTs: Date.now(), priorMs: state.priorDaysConMs, cutoffTs: Math.max(state.ferulaStartTs, startOfToday())});
   const histIdx1 = state.ferulaHistory.length - 1;
   if(state.ferulaHistory.length > 200) state.ferulaHistory.shift();
   state.ferulaActual = formatFerula(num, letra);
@@ -1804,7 +1817,7 @@ function advanceFerula(){
   // para no perder ese tiempo ni el de los tramos SIN ya registrados hoy
   commitCurrentSegment();
   // guardar en el histórico la férula que se acaba de terminar, ANTES de resetear sus contadores
-  state.ferulaHistory.push({label: state.ferulaActual, conMs: liveConMs(), targetMs: targetMsForCurrent(), endTs: Date.now()});
+  state.ferulaHistory.push({label: state.ferulaActual, conMs: liveConMs(), targetMs: targetMsForCurrent(), endTs: Date.now(), priorMs: state.priorDaysConMs, cutoffTs: Math.max(state.ferulaStartTs, startOfToday())});
   const histIdx2 = state.ferulaHistory.length - 1;
   if(state.ferulaHistory.length > 200) state.ferulaHistory.shift();
   // calcular la siguiente férula automáticamente
